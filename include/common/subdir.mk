@@ -1,0 +1,1 @@
+INCLUDES += -I $(INCLUDE_DIR)/common

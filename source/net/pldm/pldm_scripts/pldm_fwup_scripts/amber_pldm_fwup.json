@@ -1,0 +1,57 @@
+{
+    "PackageHeaderInformation": {
+        "PackageHeaderIdentifier": "F018878CCB7D49439800A02F059ACA02",
+        "PackageHeaderFormatVersion": 1,
+        "PackageVersionString": "amber.v.xx.xx.xx"
+    },
+    "FirmwareDeviceIdentificationArea": [
+        {
+            "DeviceUpdateOptionFlags": [0],
+            "ComponentImageSetVersionString": "N:nnnnnnnnO:ooooooooT:tttttttttt",
+            "ApplicableComponents": [0, 1],
+            "Descriptors": [
+                {
+                    "DescriptorType": 0,
+                    "DescriptorData": "8086"
+                },
+                {
+                    "DescriptorType": 256,
+                    "DescriptorData": "FFFF"
+                },
+                {
+                    "DescriptorType": 257,
+                    "DescriptorData": "FFFF"
+                },
+                {
+                    "DescriptorType": 258,
+                    "DescriptorData": "FFFF"
+                }
+            ]
+        }
+    ],
+    "ComponentImageInformationArea": [
+        {
+            "ComponentClassification": 10,
+            "ComponentIdentifier": 0,
+            "ComponentOptions": [],
+            "ComponentComparisonStamp": "0xFFFFFFFE",
+            "RequestedComponentActivationMethod": [3, 4],
+            "ComponentVersionString": "CCCCCCCC.SSSSSSSS"
+        },
+        {
+            "ComponentClassification": 10,
+            "ComponentIdentifier": 1,
+            "ComponentOptions": [],
+            "RequestedComponentActivationMethod": [3, 4],
+            "ComponentVersionString": "CCCCCCCC.SSSSSSSS"
+        },
+        {
+            "ComponentClassification": 10,
+            "ComponentIdentifier": 2,
+            "ComponentOptions": [],
+            "RequestedComponentActivationMethod": [3, 4],
+            "ComponentVersionString": "CCCCCCCC.SSSSSSSS"
+        }
+    ],
+    "valid": "0x07"
+}

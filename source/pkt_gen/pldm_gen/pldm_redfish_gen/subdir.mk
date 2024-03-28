@@ -1,0 +1,7 @@
+
+PLDM_REDFISH_GEN_DIR = $(SOURCE_DIR)/pkt_gen/pldm_gen/pldm_redfish_gen
+INCLUDES += -I $(PLDM_REDFISH_GEN_DIR)
+
+PLDM_REDFISH_GEN_C_SRCS = $(wildcard $(PLDM_REDFISH_GEN_DIR)/*.c)
+
+C_SRCS += $(PLDM_REDFISH_GEN_C_SRCS)

@@ -1,0 +1,7 @@
+
+MCTP_CTRL_GEN_DIR = $(SOURCE_DIR)/pkt_gen/mctp_gen
+INCLUDES += -I $(MCTP_CTRL_GEN_DIR)
+
+MCTP_CTRL_GEN_C_SRCS = $(wildcard $(MCTP_CTRL_GEN_DIR)/*.c)
+
+C_SRCS += $(MCTP_CTRL_GEN_C_SRCS)

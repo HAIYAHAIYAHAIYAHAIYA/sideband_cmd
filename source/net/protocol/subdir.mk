@@ -1,0 +1,6 @@
+PROTOCOL_DIR = $(SOURCE_DIR)/net/protocol
+INCLUDES += -I $(PROTOCOL_DIR)
+
+PROTOCOL_C_SRCS = $(wildcard $(PROTOCOL_DIR)/*.c)
+
+C_SRCS += $(PROTOCOL_C_SRCS)
