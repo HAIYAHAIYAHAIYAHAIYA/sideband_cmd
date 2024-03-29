@@ -23,6 +23,7 @@ void mctp_gen(int cmd, u8 *buf)
 
 void pldm_gen_init(void)
 {
+    pldm_ctrl_gen_init();
     pldm_fwup_gen_init();
 }
 
@@ -37,6 +38,7 @@ u8 pldm_gen(int type, int cmd, u8 *buf)
     switch (type) {
         case MCTP_PLDM_CONTROL:
             // pldm_ctrl_gen(cmd, buf);
+            ret = pldm_ctrl_state_transform_switch(cmd, buf);
             break;
 
         case MCTP_PLDM_MONITOR:
@@ -65,7 +67,7 @@ u8 pldm_gen_manual(int type, int cmd, u8 *buf)
     u8 ret = 0;
     pldm_request_t *req_hdr = (pldm_request_t *)buf;
     req_hdr->pldm_type = type;
-    // req_hdr->cmd_code = cmd;
+    req_hdr->cmd_code = cmd;
     buf += sizeof(pldm_request_t);
 
     switch (type) {
@@ -97,6 +99,7 @@ void pldm_gen_recv(u8 *msg, u8 type, u8 cmd_code)
 {
     switch (type) {
         case MCTP_PLDM_CONTROL:
+            pldm_ctrl_gen_recv(cmd_code, msg);
             break;
 
         case MCTP_PLDM_MONITOR:
