@@ -26,6 +26,18 @@
                     "DescriptorType": 258,
                     "DescriptorData": "FFFF"
                 }
+            ],
+            "FirmwareDevicePackageData" : [
+                {
+                    "Type" : 0,
+                    "Current_GFID": 1,
+                    "Origin_GFID" : 1
+                },
+                {
+                    "Type" : 1,
+                    "VPD_key": 1234,
+                    "V0_Key_Data" : 1234
+                }
             ]
         }
     ],
