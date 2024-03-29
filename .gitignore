@@ -5,3 +5,4 @@
 *.img
 .vscode/
 build/
+__pycache__
