@@ -7,7 +7,7 @@
 #define PLDM_FWUP_CMD(num)                  pldm_fwup_gen_cmd_ ## num
 
 #define PLDM_FWUP_IMG_NAME                  "upgrade_pldm_fwup_slot.bin"
-#define PLDM_FWUP_GEN_RECVBUF_MAX_SIZE      512
+#define PLDM_FWUP_GEN_RECVBUF_MAX_SIZE      (1024)
 
 typedef enum {
     PLDM_FWUP_GEN_IDLE = 0,
@@ -20,14 +20,17 @@ typedef enum {
 } plfm_fwup_gen_gen_state_t;
 
 typedef enum {
+    PLDM_FWUP_GEN_UNKNOW = 0,
     PLDM_FWUP_GEN_NO_GET_FD_INDENTIFY = 1,
     PLDM_FWUP_GEN_GET_FD_INDENTIFY,
     PLDM_FWUP_GEN_GET_FD_PARAM_AND_NOT_UPDATE,
     PLDM_FWUP_GEN_WITH_PKT_DATA,
+    PLDM_FWUP_GEN_SEND_PKT_DATA,
     PLDM_FWUP_GEN_NO_PKT_DATA,
     PLDM_FWUP_GEN_SEND_PKT_DATA_END,
     PLDM_FWUP_GEN_SEND_PASS_COMP_END,
     PLDM_FWUP_GEN_SEND_UP_COMP_END,
+    PLDM_FWUP_GEN_SEND_UP_COMP_END_PAUSE,
     PLDM_FWUP_GEN_SEND_FW_DATA,
     PLDM_FWUP_GEN_SEND_FW_DATA_PAUSE,
     PLDM_FWUP_GEN_TRANS_FW_DATA_END,
@@ -40,6 +43,7 @@ typedef enum {
 
     PLDM_FWUP_GEN_COMP_CANCEL_OR_TIMEOUT,
     PLDM_FWUP_GEN_IMG_CANCEL_OR_TIMEOUT,
+    PLDM_FWUP_GEN_GET_STATUS,
 } plfm_fwup_gen_event_id_t;
 
 #pragma pack(1)
@@ -59,5 +63,6 @@ void pldm_fwup_gen_cmd_11(u8 *buf);
 void pldm_fwup_gen_cmd_15(u8 *buf);
 
 pldm_fwup_req_fw_data_req_dat_t pldm_fwup_gen_recv_get_fw_data_req_dat(void);
+u32 pldm_fwup_gen_recv_get_pkt_data_req_dat(void);
 
 #endif /* __PLDM_FWUP_GEN_H__ */

@@ -24,6 +24,8 @@
 #define UPDATING_MODE                               TRUE
 #define NON_UPDATE_MODE                             FALSE
 
+#define PLDM_FWUP_RECV_IMG_NAME                  "pldm_fwup_slot.bin"
+
 typedef enum {
     PLDM_UD_IDLE = 0,
     PLDM_UD_LEARN_COMP,

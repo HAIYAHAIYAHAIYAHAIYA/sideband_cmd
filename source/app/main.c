@@ -62,7 +62,7 @@ int cmd_num_get(void)
 	scanf("%x", &choice);
     while ((confirm = getchar()) != '\n')//用户再次输入回车键才表示其真正确认
 		continue;
-    while (choice != 0xFF && (choice < 1 || choice > 0x53))//判断执行1-8，并且检测合法输入
+    while (choice != 0xFF && (choice < 0 || choice > 0x53))//判断执行1-8，并且检测合法输入
 	{
 		LOG("you input: '%d' err! need re input : ", choice);
 		scanf("%x", &choice);
@@ -126,6 +126,8 @@ void pldm_process(protocol_msg_t *pkt)
             LOG("PLDM CMD");
             choice = cmd_num_get();
             if (choice == 0xFF) break;
+            if (choice)
+                pldm_gen_manual(pldm_type, choice, pkt->req_buf);
             while (1) {
                 u8 ret = pldm_gen(pldm_type, choice, pkt->req_buf);
                 if (ret == 0xFF) break;

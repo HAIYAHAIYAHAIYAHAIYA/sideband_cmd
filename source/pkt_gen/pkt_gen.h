@@ -25,5 +25,6 @@ void pldm_gen_recv(u8 *msg, u8 type, u8 cmd_code);
 void gen_cmd_unsupport(u8 *buf);
 void mctp_gen(int cmd, u8 *buf);
 u8 pldm_gen(int type, int cmd, u8 *buf);
+u8 pldm_gen_manual(int type, int cmd, u8 *buf);
 
 #endif /* __PKT_GEN_H__ */

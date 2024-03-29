@@ -20,9 +20,17 @@ static void pldm_fwup_gen_recv_cmd_10(u8 *buf)
 
 }
 
+u32 gs_data_transfer_handle = 0;
 static void pldm_fwup_gen_recv_cmd_11(u8 *buf)
 {
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_PKT_DATA_END;
+    pldm_fwup_get_pkt_data_req_dat_t *req_dat = (pldm_fwup_get_pkt_data_req_dat_t *)buf;
+    gs_data_transfer_handle = req_dat->data_transfer_handle;
+    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_PKT_DATA;
+}
+
+u32 pldm_fwup_gen_recv_get_pkt_data_req_dat(void)
+{
+    return gs_data_transfer_handle;
 }
 
 static void pldm_fwup_gen_recv_cmd_13(u8 *buf)
@@ -50,18 +58,34 @@ pldm_fwup_req_fw_data_req_dat_t pldm_fwup_gen_recv_get_fw_data_req_dat(void)
 
 static void pldm_fwup_gen_recv_cmd_16(u8 *buf)
 {
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_TRANS_FW_DATA_END;
+    pldm_fwup_transfer_cpl_req_dat_t *req_dat = (pldm_fwup_transfer_cpl_req_dat_t *)buf;
+    if (!(req_dat->transfer_result))
+        // g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_TRANS_FW_DATA_END;
+        ;
+    else {
+        LOG("pldm_fwup_transfer_cpl_req_dat_t err : %#x", req_dat->transfer_result);
+    }
 }
 
 static void pldm_fwup_gen_recv_cmd_17(u8 *buf)
 {
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_FD_VERIFY_END;
+    pldm_fwup_verify_cpl_req_dat_t *req_dat = (pldm_fwup_verify_cpl_req_dat_t *)buf;
+    if (!(req_dat->verify_result))
+        // g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_FD_VERIFY_END;
+        ;
+    else
+        LOG("pldm_fwup_verify_cpl_req_dat_t err : %#x", req_dat->verify_result);
 }
 
 static void pldm_fwup_gen_recv_cmd_18(u8 *buf)
 {
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_FD_APPLY_END;
-    // g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_NO_IMG;
+    pldm_fwup_apply_cpl_req_dat_t *req_dat = (pldm_fwup_apply_cpl_req_dat_t *)buf;
+    if (!(req_dat->apply_result))
+        // g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_FD_APPLY_END;
+        ;
+    else
+        LOG("pldm_fwup_apply_cpl_req_dat_t err : %#x", req_dat->apply_result);
+    LOG("comp_actv_meth_modification : %#x", req_dat->comp_actv_meth_modification);
 }
 
 static void pldm_fwup_gen_recv_cmd_1a(u8 *buf)
@@ -122,9 +146,9 @@ void pldm_fwup_gen_recv(int cmd, u8 *buf)
     if (cmd < PLDM_FW_UPDATE_CMD) {
         if (cmds[cmd])
             cmds[cmd](buf);
-            LOG("RECV CMD : %#x", cmd);
+            LOG("RECV CMD : %#x\n", cmd);
             // LOG("pldm_fwup_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_fwup_gen_state.prev_state, gs_pldm_fwup_gen_state.cur_state, g_pldm_fwup_gen_event_id);  /* for debug */
     } else {
-        LOG("ERR CMD : %#x", cmd);
+        LOG("ERR CMD : %#x\n", cmd);
     }
 }

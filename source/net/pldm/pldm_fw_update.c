@@ -650,7 +650,7 @@ void pldm_fwup_state_machine_switch(void)
             pldm_fwup_sta_chg(pldm_fwup_transforms[i].next_state);
             LOG("prev state : %d, cur state : %d, event id : %d", g_pldm_fwup_info.prev_state, g_pldm_fwup_info.cur_state, gs_event_id);  /* for debug */
             if (gs_event_id == PLDM_UD_UD_COMP_END) {
-                pd = fopen("pldm_fwup_slot.bin", "w+b");
+                pd = fopen(PLDM_FWUP_RECV_IMG_NAME, "w+b");
             }
             if (pldm_fwup_transforms[i].action != NULL) {
                 pldm_fwup_transforms[i].action();

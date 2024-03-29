@@ -74,7 +74,7 @@ static void pldm_type_process(protocol_msg_t *pkt, int *pkt_len)
     pkt->req_buf += sizeof(pldm_request_t);
     pkt->rsp_buf += sizeof(pldm_response_t);
 
-    LOG("cmd code : %#x", pldm_req->cmd_code);
+    LOG("\nSEND CMD : %#x", pldm_req->cmd_code);
     switch (pldm_type) {
         case MCTP_PLDM_CONTROL:
             LOG("MCTP_PLDM_CONTROL");

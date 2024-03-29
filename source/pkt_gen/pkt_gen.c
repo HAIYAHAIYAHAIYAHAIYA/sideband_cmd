@@ -60,6 +60,39 @@ u8 pldm_gen(int type, int cmd, u8 *buf)
     return ret;
 }
 
+u8 pldm_gen_manual(int type, int cmd, u8 *buf)
+{
+    u8 ret = 0;
+    pldm_request_t *req_hdr = (pldm_request_t *)buf;
+    req_hdr->pldm_type = type;
+    // req_hdr->cmd_code = cmd;
+    buf += sizeof(pldm_request_t);
+
+    switch (type) {
+        case MCTP_PLDM_CONTROL:
+            // pldm_ctrl_gen(cmd, buf);
+            break;
+
+        case MCTP_PLDM_MONITOR:
+            // pldm_monitor_gen(cmd, buf);
+            break;
+
+        case MCTP_PLDM_UPDATE:
+            pldm_fwup_gen(cmd, buf);
+            break;
+
+        case MCTP_PLDM_REDFISH:
+
+            break;
+
+        default:
+            LOG("ERR PLDM PROTOCOL! : %d", type);
+            break;
+    }
+    buf -= sizeof(pldm_request_t);
+    return ret;
+}
+
 void pldm_gen_recv(u8 *msg, u8 type, u8 cmd_code)
 {
     switch (type) {
