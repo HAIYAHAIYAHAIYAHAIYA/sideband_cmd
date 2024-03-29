@@ -171,7 +171,7 @@ int main(int argc, char * argv [])
         }
         // LOG("%d", choice);
 	}
-    fclose(g_fp);
+    // fclose(g_fp);
 	LOG("thanks for use!");
     return 0;
 }
