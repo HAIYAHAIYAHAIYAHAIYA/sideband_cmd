@@ -5,7 +5,7 @@
 
 typedef enum {
     PLDM_CTRL_GEN_IDLE = 0,
-} plfm_ctrl_gen_gen_state_t;
+} pldm_ctrl_gen_gen_state_t;
 
 typedef enum {
     PLDM_CTRL_GEN_UNKNOW = 0,
@@ -15,7 +15,7 @@ typedef enum {
     PLDM_CTRL_GEN_ENTER_CMD_04,
     PLDM_CTRL_GEN_ENTER_CMD_05,
     PLDM_CTRL_GEN_ENTER_CMD_UNKNOW,
-} plfm_ctrl_gen_event_id_t;
+} pldm_ctrl_gen_event_id_t;
 
 void pldm_ctrl_gen_init(void);
 void pldm_ctrl_gen(int cmd, u8 *buf);

@@ -17,7 +17,7 @@ typedef enum {
     PLDM_FWUP_GEN_VERIFY,
     PLDM_FWUP_GEN_APPLY,
     PLDM_FWUP_GEN_ACTIVATE
-} plfm_fwup_gen_gen_state_t;
+} pldm_fwup_gen_gen_state_t;
 
 typedef enum {
     PLDM_FWUP_GEN_UNKNOW = 0,
@@ -44,7 +44,7 @@ typedef enum {
     PLDM_FWUP_GEN_COMP_CANCEL_OR_TIMEOUT,
     PLDM_FWUP_GEN_IMG_CANCEL_OR_TIMEOUT,
     PLDM_FWUP_GEN_GET_STATUS,
-} plfm_fwup_gen_event_id_t;
+} pldm_fwup_gen_event_id_t;
 
 void pldm_fwup_gen_init(void);
 

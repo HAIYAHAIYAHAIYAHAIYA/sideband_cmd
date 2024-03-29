@@ -120,7 +120,7 @@ int pldm_pkt_process(protocol_msg_t *pkt)
 
     if (g_pldm_need_rsp) {                     /* In the case of actively sending pkt */
         // mctp_as_responser_send_to(pkt, pkt_len);
-        pldm_gen_recv(pkt->req_buf, pldm_type, pldm_req->cmd_code);
+        pldm_gen_recv(pkt->rsp_buf, pldm_type, pldm_req->cmd_code);
     }
     g_pldm_need_rsp = 1;
     if (pldm_type == MCTP_PLDM_UPDATE)

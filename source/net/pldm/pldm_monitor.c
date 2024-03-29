@@ -742,6 +742,8 @@ static void pldm_monitor_get_pdr_repo_info(protocol_msg_t *pkt, int *pkt_len)
     rsp_dat->largest_record_size = g_pldm_monitor_info.pldm_repo.largest_pdr_size;                    /* max byte is 153 bytes, */
     rsp_dat->data_transfer_handle_timeout = PLDM_REPO_DEFAULT_MINIMUM_TIMEOUT;                        /* default timeout of 30 seconds */
 
+    LOG("record_count : %d", rsp_dat->record_count);
+
     *pkt_len += sizeof(pldm_get_pdr_repo_info_rsp_dat_t);
 }
 
@@ -807,7 +809,7 @@ static void pldm_monitor_get_pdr(protocol_msg_t *pkt, int *pkt_len)
     gs_pdr_previous_data_transfer_handle = rsp_dat->next_data_transfer_handle;
     *pkt_len += sizeof(pldm_get_pdr_rsp_dat_t) + rsp_dat->rsp_cnt;
 L_ERR:
-    LOG("transfer_flag : %d", rsp_dat->transfer_flag);
+    LOG("transfer_flag : %d, cpl code : %#x, req_dat->record_handle : %#x", rsp_dat->transfer_flag, rsp_hdr->cpl_code, req_dat->record_handle);
     return;
 }
 
