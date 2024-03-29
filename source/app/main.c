@@ -10,6 +10,7 @@
 #include "pkt_gen.h"
 
 sys_ctrl_t g_sys;
+FILE *g_fp = NULL;
 
 int cmd_get(void)
 {
@@ -137,12 +138,19 @@ void pldm_process(protocol_msg_t *pkt)
     }
 }
 
+void my_exit(void)
+{
+    fclose(g_fp);
+    printf("before exit () !\n");
+}
+
 u8 req_buf[1024 + 4 + 5];
 u8 rsp_buf[1024 + 4 + 5];
 
 int main(int argc, char * argv [])
 {
     cmd_init();
+    atexit (my_exit);
     LOG("hello world!");
     int choice;
     protocol_msg_t pkt;
@@ -163,6 +171,7 @@ int main(int argc, char * argv [])
         }
         // LOG("%d", choice);
 	}
+    fclose(g_fp);
 	LOG("thanks for use!");
     return 0;
 }

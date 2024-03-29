@@ -35,8 +35,19 @@ do {\
     _ms;\
 })
 
+extern FILE *g_fp;
+
 #if 1
-    #define LOG(...)               do{printf(__VA_ARGS__);printf("\r\n");}while(0)
+    #define LOG(...)               \
+    do { \
+        printf(__VA_ARGS__);\
+        printf("\r\n");\
+        if (!g_fp) {\
+            g_fp = fopen("log.txt", "w+"); \
+        }\
+        fprintf(g_fp, __VA_ARGS__);\
+        fprintf(g_fp, "\r\n"); \
+    }while(0)
 #else 
     #define LOG(...)
 #endif
