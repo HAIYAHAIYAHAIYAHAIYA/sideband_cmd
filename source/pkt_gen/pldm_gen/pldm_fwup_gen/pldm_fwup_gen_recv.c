@@ -1,18 +1,17 @@
 #include "pkt_gen.h"
 #include "pldm_fwup_gen.h"
 
-extern volatile u8 g_pldm_fwup_gen_event_id;
-extern pldm_fwup_gen_state_t gs_pldm_fwup_gen_state;
+extern pldm_gen_state_t gs_pldm_fwup_gen_state;
 static pldm_fwup_req_fw_data_req_dat_t gs_fw_data_req_dat;
 
 static void pldm_fwup_gen_recv_cmd_01(u8 *buf)
 {
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_GET_FD_INDENTIFY;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_GET_FD_INDENTIFY;
 }
 
 static void pldm_fwup_gen_recv_cmd_02(u8 *buf)
 {
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_GET_FD_PARAM_AND_NOT_UPDATE;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_GET_FD_PARAM_AND_NOT_UPDATE;
 }
 
 static void pldm_fwup_gen_recv_cmd_10(u8 *buf)
@@ -25,7 +24,7 @@ static void pldm_fwup_gen_recv_cmd_11(u8 *buf)
 {
     pldm_fwup_get_pkt_data_req_dat_t *req_dat = (pldm_fwup_get_pkt_data_req_dat_t *)buf;
     gs_data_transfer_handle = req_dat->data_transfer_handle;
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_PKT_DATA;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_PKT_DATA;
 }
 
 u32 pldm_fwup_gen_recv_get_pkt_data_req_dat(void)
@@ -35,12 +34,12 @@ u32 pldm_fwup_gen_recv_get_pkt_data_req_dat(void)
 
 static void pldm_fwup_gen_recv_cmd_13(u8 *buf)
 {
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_PASS_COMP_END;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_PASS_COMP_END;
 }
 
 static void pldm_fwup_gen_recv_cmd_14(u8 *buf)
 {
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_UP_COMP_END;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_UP_COMP_END;
 }
 
 static void pldm_fwup_gen_recv_cmd_15(u8 *buf)
@@ -48,7 +47,7 @@ static void pldm_fwup_gen_recv_cmd_15(u8 *buf)
     pldm_fwup_req_fw_data_req_dat_t *req_dat = (pldm_fwup_req_fw_data_req_dat_t *)buf;
     gs_fw_data_req_dat.offset = req_dat->offset;
     gs_fw_data_req_dat.len = req_dat->len;
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_FW_DATA;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_FW_DATA;
 }
 
 pldm_fwup_req_fw_data_req_dat_t pldm_fwup_gen_recv_get_fw_data_req_dat(void)
@@ -60,7 +59,7 @@ static void pldm_fwup_gen_recv_cmd_16(u8 *buf)
 {
     pldm_fwup_transfer_cpl_req_dat_t *req_dat = (pldm_fwup_transfer_cpl_req_dat_t *)buf;
     if (!(req_dat->transfer_result))
-        // g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_TRANS_FW_DATA_END;
+        // gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_TRANS_FW_DATA_END;
         ;
     else {
         LOG("pldm_fwup_transfer_cpl_req_dat_t err : %#x", req_dat->transfer_result);
@@ -71,7 +70,7 @@ static void pldm_fwup_gen_recv_cmd_17(u8 *buf)
 {
     pldm_fwup_verify_cpl_req_dat_t *req_dat = (pldm_fwup_verify_cpl_req_dat_t *)buf;
     if (!(req_dat->verify_result))
-        // g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_FD_VERIFY_END;
+        // gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_FD_VERIFY_END;
         ;
     else
         LOG("pldm_fwup_verify_cpl_req_dat_t err : %#x", req_dat->verify_result);
@@ -81,7 +80,7 @@ static void pldm_fwup_gen_recv_cmd_18(u8 *buf)
 {
     pldm_fwup_apply_cpl_req_dat_t *req_dat = (pldm_fwup_apply_cpl_req_dat_t *)buf;
     if (!(req_dat->apply_result))
-        // g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_FD_APPLY_END;
+        // gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_FD_APPLY_END;
         ;
     else
         LOG("pldm_fwup_apply_cpl_req_dat_t err : %#x", req_dat->apply_result);
@@ -90,12 +89,12 @@ static void pldm_fwup_gen_recv_cmd_18(u8 *buf)
 
 static void pldm_fwup_gen_recv_cmd_1a(u8 *buf)
 {
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_ACTIV_CMD;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_ACTIV_CMD;
 }
 
 static void pldm_fwup_gen_recv_cmd_1b(u8 *buf)
 {
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_FD_IS_UPDATE;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_FD_IS_UPDATE;
 }
 
 static void pldm_fwup_gen_recv_cmd_1c(u8 *buf)
@@ -147,7 +146,7 @@ void pldm_fwup_gen_recv(int cmd, u8 *buf)
         if (cmds[cmd])
             cmds[cmd](buf);
             LOG("RECV CMD : %#x\n", cmd);
-            // LOG("pldm_fwup_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_fwup_gen_state.prev_state, gs_pldm_fwup_gen_state.cur_state, g_pldm_fwup_gen_event_id);  /* for debug */
+            // LOG("pldm_fwup_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_fwup_gen_state.prev_state, gs_pldm_fwup_gen_state.cur_state, gs_pldm_fwup_gen_state.event_id);  /* for debug */
     } else {
         LOG("ERR CMD : %#x\n", cmd);
     }

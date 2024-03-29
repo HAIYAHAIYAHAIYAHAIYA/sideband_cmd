@@ -46,13 +46,6 @@ typedef enum {
     PLDM_FWUP_GEN_GET_STATUS,
 } plfm_fwup_gen_event_id_t;
 
-#pragma pack(1)
-typedef struct {
-    u8 cur_state;
-    u8 prev_state;
-} pldm_fwup_gen_state_t;
-#pragma pack()
-
 void pldm_fwup_gen_init(void);
 
 void pldm_fwup_gen_recv(int cmd, u8 *buf);

@@ -2,13 +2,12 @@
 #include "pkt_gen.h"
 
 u8 b[9000];
-volatile u8 g_pldm_fwup_gen_event_id;
-pldm_fwup_gen_state_t gs_pldm_fwup_gen_state;
+pldm_gen_state_t gs_pldm_fwup_gen_state;
 
 static void pldm_fwup_gen_cmd_01(u8 *buf)
 {
     pldm_gen_req_hdr_update(buf, 0x01);
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_NO_GET_FD_INDENTIFY;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_NO_GET_FD_INDENTIFY;
 }
 
 static void pldm_fwup_gen_cmd_02(u8 *buf)
@@ -48,9 +47,9 @@ static void pldm_fwup_gen_cmd_10(u8 *buf)
     cm_memcpy(req_dat->comp_img_set_ver_str, name, cm_strlen(name));
 
     if (req_dat->pkt_data_len) {
-        g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_WITH_PKT_DATA;
+        gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_WITH_PKT_DATA;
     } else {
-        g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_NO_PKT_DATA;
+        gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_NO_PKT_DATA;
     }
 }
 
@@ -91,7 +90,7 @@ void pldm_fwup_gen_cmd_11(u8 *buf)
     cm_memcpy(rsp_dat->portion_of_pkt_data, b, cpy_len);
 
     if (remain_len < PLDM_FWUP_GEN_RECVBUF_MAX_SIZE)
-        g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_PKT_DATA_END;
+        gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_PKT_DATA_END;
 }
 
 static void pldm_fwup_gen_cmd_13(u8 *buf)
@@ -161,8 +160,8 @@ static void pldm_fwup_gen_cmd_14(u8 *buf)
     req_dat->comp_img_size = comp_first_part->comp_size;
     req_dat->ud_option_flag = comp_first_part->comp_options;
 
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_STILL_HAVE_IMG;
-    // g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_UP_COMP_END;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_STILL_HAVE_IMG;
+    // gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_UP_COMP_END;
 }
 
 void pldm_fwup_gen_cmd_15(u8 *buf)
@@ -201,7 +200,7 @@ void pldm_fwup_gen_cmd_15(u8 *buf)
     fread(&b, sizeof(u8), cpy_len, pd);
     fclose(pd);
     cm_memcpy(rsp_dat->comp_img_option, b, cpy_len);
-    // g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_FW_DATA;
+    // gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_FW_DATA;
 }
 
 static void pldm_fwup_gen_cmd_16(u8 *buf)
@@ -209,7 +208,7 @@ static void pldm_fwup_gen_cmd_16(u8 *buf)
     pldm_gen_req_hdr_update(buf, 0x16);
     pldm_fwup_transfer_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_transfer_cpl_rsp_dat_t *)buf;
     rsp_dat->cpl_code = MCTP_COMMAND_SUCCESS;
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_TRANS_FW_DATA_END;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_TRANS_FW_DATA_END;
 }
 
 static void pldm_fwup_gen_cmd_17(u8 *buf)
@@ -217,7 +216,7 @@ static void pldm_fwup_gen_cmd_17(u8 *buf)
     pldm_gen_req_hdr_update(buf, 0x17);
     pldm_fwup_verify_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_verify_cpl_rsp_dat_t *)buf;
     rsp_dat->cpl_code = MCTP_COMMAND_SUCCESS;
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_FD_VERIFY_END;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_FD_VERIFY_END;
 }
 
 static void pldm_fwup_gen_cmd_18(u8 *buf)
@@ -225,7 +224,7 @@ static void pldm_fwup_gen_cmd_18(u8 *buf)
     pldm_gen_req_hdr_update(buf, 0x18);
     pldm_fwup_apply_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_apply_cpl_rsp_dat_t *)buf;
     rsp_dat->cpl_code = MCTP_COMMAND_SUCCESS;
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_FD_APPLY_END;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_FD_APPLY_END;
 }
 
 static void pldm_fwup_gen_cmd_1a(u8 *buf)
@@ -234,25 +233,25 @@ static void pldm_fwup_gen_cmd_1a(u8 *buf)
     pldm_gen_req_hdr_update(buf, 0x1a);
     pldm_fwup_actv_fw_req_dat_t *req_dat = (pldm_fwup_actv_fw_req_dat_t *)buf;
     req_dat->self_contained_actv_req = true;
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_NO_IMG;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_NO_IMG;
 }
 
 static void pldm_fwup_gen_cmd_1b(u8 *buf)
 {
     pldm_gen_req_hdr_update(buf, 0x1b);
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_GET_STATUS;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_GET_STATUS;
 }
 
 static void pldm_fwup_gen_cmd_1c(u8 *buf)
 {
     pldm_gen_req_hdr_update(buf, 0x1c);
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_COMP_CANCEL_OR_TIMEOUT;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_COMP_CANCEL_OR_TIMEOUT;
 }
 
 static void pldm_fwup_gen_cmd_1d(u8 *buf)
 {
     pldm_gen_req_hdr_update(buf, 0x1d);
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_IMG_CANCEL_OR_TIMEOUT;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_IMG_CANCEL_OR_TIMEOUT;
 }
 
 void pldm_fwup_gen(int cmd, u8 *buf)
@@ -302,7 +301,7 @@ static void pldm_fwup_gen_clean_param(u8 *buf)
 {
     // gs_pldm_fwup_gen_state.cur_state = PLDM_FWUP_GEN_IDLE;
     // gs_pldm_fwup_gen_state.prev_state = PLDM_FWUP_GEN_IDLE;
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_UNKNOW;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_UNKNOW;
 }
 
 pkt_gen_state_transform_t pldm_fwup_state_transform[] = {
@@ -357,31 +356,31 @@ void pldm_fwup_gen_init(void)
 {
     gs_pldm_fwup_gen_state.cur_state = PLDM_FWUP_GEN_IDLE;
     gs_pldm_fwup_gen_state.prev_state = PLDM_FWUP_GEN_IDLE;
-    g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_UNKNOW;
+    gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_UNKNOW;
 }
 
 u8 pldm_fwup_state_transform_switch(u8 cnt, u8 *buf)
 {
     u8 ret = 0xFF;
     for (u8 i = 0; i < sizeof(pldm_fwup_state_transform) / sizeof(pkt_gen_state_transform_t); i++) {
-        if ((gs_pldm_fwup_gen_state.cur_state == pldm_fwup_state_transform[i].cur_state) && (g_pldm_fwup_gen_event_id == pldm_fwup_state_transform[i].event_id)) {
+        if ((gs_pldm_fwup_gen_state.cur_state == pldm_fwup_state_transform[i].cur_state) && (gs_pldm_fwup_gen_state.event_id == pldm_fwup_state_transform[i].event_id)) {
             gs_pldm_fwup_gen_state.prev_state = gs_pldm_fwup_gen_state.cur_state;
             gs_pldm_fwup_gen_state.cur_state = pldm_fwup_state_transform[i].next_state;
-            LOG("pldm_fwup_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_fwup_gen_state.prev_state, gs_pldm_fwup_gen_state.cur_state, g_pldm_fwup_gen_event_id);  /* for debug */
-            if (g_pldm_fwup_gen_event_id == PLDM_FWUP_GEN_SEND_FW_DATA)
-                g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_FW_DATA_PAUSE;
+            LOG("pldm_fwup_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_fwup_gen_state.prev_state, gs_pldm_fwup_gen_state.cur_state, gs_pldm_fwup_gen_state.event_id);  /* for debug */
+            if (gs_pldm_fwup_gen_state.event_id == PLDM_FWUP_GEN_SEND_FW_DATA)
+                gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_FW_DATA_PAUSE;
 
-            // if (g_pldm_fwup_gen_event_id == PLDM_FWUP_GEN_FD_APPLY_END)
-                // g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_NO_IMG;
+            // if (gs_pldm_fwup_gen_state.event_id == PLDM_FWUP_GEN_FD_APPLY_END)
+                // gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_NO_IMG;
 
-            if (g_pldm_fwup_gen_event_id == PLDM_FWUP_GEN_SEND_PKT_DATA)
-                g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_WITH_PKT_DATA;
+            if (gs_pldm_fwup_gen_state.event_id == PLDM_FWUP_GEN_SEND_PKT_DATA)
+                gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_WITH_PKT_DATA;
 
-            if (g_pldm_fwup_gen_event_id == PLDM_FWUP_GEN_SEND_UP_COMP_END) {
-                g_pldm_fwup_gen_event_id = PLDM_FWUP_GEN_SEND_UP_COMP_END_PAUSE;
+            if (gs_pldm_fwup_gen_state.event_id == PLDM_FWUP_GEN_SEND_UP_COMP_END) {
+                gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_UP_COMP_END_PAUSE;
             }
 
-            if (g_pldm_fwup_gen_event_id == PLDM_FWUP_GEN_FD_IS_UPDATE)
+            if (gs_pldm_fwup_gen_state.event_id == PLDM_FWUP_GEN_FD_IS_UPDATE)
                 ret = 0;
             else
                 ret = 1;

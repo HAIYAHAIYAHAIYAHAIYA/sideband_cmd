@@ -15,6 +15,12 @@ typedef struct {
     gen_cmd action;
 } pkt_gen_state_transform_t;
 
+typedef struct {
+    u8 cur_state;
+    u8 prev_state;
+    u8 event_id;
+} pldm_gen_state_t;
+
 #pragma pack()
 
 void pldm_gen_init(void);

@@ -70,11 +70,11 @@ u8 pldm_gen_manual(int type, int cmd, u8 *buf)
 
     switch (type) {
         case MCTP_PLDM_CONTROL:
-            // pldm_ctrl_gen(cmd, buf);
+            pldm_ctrl_gen(cmd, buf);
             break;
 
         case MCTP_PLDM_MONITOR:
-            // pldm_monitor_gen(cmd, buf);
+            pldm_monitor_gen(cmd, buf);
             break;
 
         case MCTP_PLDM_UPDATE:
