@@ -30,6 +30,8 @@ typedef enum {
     PLDM_MONITOR_GEN_ENTER_CMD_50,
     PLDM_MONITOR_GEN_GET_PDR,
     PLDM_MONITOR_GEN_ENTER_CMD_53,
+    PLDM_MONITOR_GEN_RECV_EVENT,
+    PLDM_MONITOR_GEN_NEED_POLL_EVENT,
     PLDM_MONITOR_GEN_ENTER_CMD_UNKNOW,
 } pldm_monitor_gen_event_id_t;
 
@@ -42,5 +44,6 @@ void pldm_monitor_gen_init(void);
 u8 pldm_monitor_state_transform_switch(u8 cnt, u8 *buf);
 
 pldm_get_pdr_rsp_dat_t pldm_monitor_get_pdr_rsp_dat(void);
+pldm_poll_for_platform_event_msg_rsp_dat_t pldm_monitor_get_pull_event_rsp_dat(void);
 
 #endif /* __PLDM_MONITOR_GEN_H__ */

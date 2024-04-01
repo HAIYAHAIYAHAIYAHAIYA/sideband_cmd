@@ -75,9 +75,9 @@ int cmd_num_get(void)
 
 void cmd_init(void)
 {
+    pldm_redfish_init();
     mctp_ctrl_init();
     pldm_monitor_init();
-    pldm_redfish_init();
     pldm_fwup_init();
 
     pldm_gen_init();
@@ -125,6 +125,7 @@ void pldm_process(protocol_msg_t *pkt)
         if (pldm_type == 0xFF) break;
         while (1) {
             LOG("PLDM CMD");
+            // pldm_event_send_handle();
             choice = cmd_num_get();
             if (choice == 0xFF) break;
             if (choice)

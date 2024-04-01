@@ -37,12 +37,20 @@ static void pldm_monitor_gen_cmd_05(u8 *buf)
 
 static void pldm_monitor_gen_cmd_0a(u8 *buf)
 {
-
+    pldm_gen_req_hdr_update(buf, 0x0a);
+    pldm_platform_event_msg_receive_t *req_dat = (pldm_platform_event_msg_receive_t *)buf;
+    req_dat->cpl_code = MCTP_COMMAND_SUCCESS;
 }
 
 static void pldm_monitor_gen_cmd_0b(u8 *buf)
 {
-
+    pldm_gen_req_hdr_update(buf, 0x0b);
+    pldm_poll_for_platform_event_msg_req_dat_t *req_dat = (pldm_poll_for_platform_event_msg_req_dat_t *)buf;
+    pldm_poll_for_platform_event_msg_rsp_dat_t recv_rsp_dat = pldm_monitor_get_pull_event_rsp_dat();
+    req_dat->data_transfer_handle = recv_rsp_dat.next_data_transfer_handle;
+    req_dat->format_ver = PLDM_EVENT_FORMAT_VERSION;
+    req_dat->transfer_op_flag = !(recv_rsp_dat.next_data_transfer_handle) ? PLDM_TRANSFER_OP_FLAG_GET_FIRST_PART : PLDM_TRANSFER_OP_FLAG_GET_NEXT_PART;
+    req_dat->event_id_to_ack = !(recv_rsp_dat.next_data_transfer_handle) ? recv_rsp_dat.event_id : 0xFFFF;
 }
 
 static void pldm_monitor_gen_cmd_0c(u8 *buf)
@@ -213,17 +221,26 @@ pkt_gen_state_transform_t pldm_monitor_state_transform[] = {
 
     {PLDM_MONITOR_GEN_IDLE, PLDM_MONITOR_GEN_ENTER_CMD_UNKNOW, PLDM_MONITOR_GEN_IDLE, NULL},
     {PLDM_MONITOR_GEN_IDLE, PLDM_MONITOR_GEN_GET_PDR,          PLDM_MONITOR_GEN_IDLE, PLDM_MONITOR_CMD_GEN(51)},
+    {PLDM_MONITOR_GEN_IDLE, PLDM_MONITOR_GEN_RECV_EVENT,       PLDM_MONITOR_GEN_IDLE, PLDM_MONITOR_CMD_GEN(0a)},
+    {PLDM_MONITOR_GEN_IDLE, PLDM_MONITOR_GEN_NEED_POLL_EVENT,  PLDM_MONITOR_GEN_IDLE, PLDM_MONITOR_CMD_GEN(0b)},
 };
 
 u8 pldm_monitor_state_transform_switch(u8 cnt, u8 *buf)
 {
     u8 ret = 0xFF;
+    // LOG("gs_pldm_monitor_gen_state.event_id : %d", gs_pldm_monitor_gen_state.event_id);
     for (u8 i = 0; i < sizeof(pldm_monitor_state_transform) / sizeof(pkt_gen_state_transform_t); i++) {
         if (gs_pldm_monitor_gen_state.cur_state == pldm_monitor_state_transform[i].cur_state && gs_pldm_monitor_gen_state.event_id == pldm_monitor_state_transform[i].event_id) {
             gs_pldm_monitor_gen_state.prev_state = gs_pldm_monitor_gen_state.cur_state;
             gs_pldm_monitor_gen_state.cur_state = pldm_monitor_state_transform[i].next_state;
-            // LOG("gs_pldm_monitor_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_monitor_gen_state.prev_state, gs_pldm_monitor_gen_state.cur_state, gs_pldm_monitor_gen_state.event_id);  /* for debug */
+            LOG("gs_pldm_monitor_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_monitor_gen_state.prev_state, gs_pldm_monitor_gen_state.cur_state, gs_pldm_monitor_gen_state.event_id);  /* for debug */
             if (gs_pldm_monitor_gen_state.event_id == PLDM_MONITOR_GEN_GET_PDR)
+                gs_pldm_monitor_gen_state.event_id = PLDM_MONITOR_GEN_UNKNOW;
+
+            if (gs_pldm_monitor_gen_state.event_id == PLDM_MONITOR_GEN_RECV_EVENT)
+                gs_pldm_monitor_gen_state.event_id = PLDM_MONITOR_GEN_UNKNOW;
+
+            if (gs_pldm_monitor_gen_state.event_id == PLDM_MONITOR_GEN_NEED_POLL_EVENT)
                 gs_pldm_monitor_gen_state.event_id = PLDM_MONITOR_GEN_UNKNOW;
 
             if (pldm_monitor_state_transform[i].action != NULL) {

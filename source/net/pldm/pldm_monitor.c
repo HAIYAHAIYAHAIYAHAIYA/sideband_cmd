@@ -134,6 +134,7 @@ static void pldm_monitor_poll_for_platform_event_msg(protocol_msg_t *pkt, int *p
     rsp_dat->tid = g_pldm_monitor_info.tid;
 
     if (pldm_event_rbuf_is_empty(g_pldm_monitor_info.pldm_event_rbuf)) {
+        // g_event_id = 1;
         rsp_dat->event_id = 0x0000;
         *pkt_len += sizeof(rsp_dat->event_id) + sizeof(rsp_dat->tid);
         g_pldm_monitor_info.terminus_mode = PLDM_ENABLE_ASYNC;                        /* exit poll state */
@@ -176,10 +177,10 @@ static void pldm_monitor_poll_for_platform_event_msg(protocol_msg_t *pkt, int *p
         goto L_ERR;
     }
 
-    u16 max_pkt_len = g_pldm_monitor_info.terminus_max_buffersize - PLDM_SYNC_SEND_FIELD_LEN;
-    rsp_dat->event_datasize = ((gs_pldm_event_data.event_data_size + sizeof(u32)) <= max_pkt_len) ? gs_pldm_event_data.event_data_size : max_pkt_len;
+    u16 max_pkt_len = g_pldm_monitor_info.terminus_max_buffersize - PLDM_SYNC_SEND_FIELD_LEN - sizeof(u32);
+    rsp_dat->event_datasize = ((gs_pldm_event_data.event_data_size - req_dat->data_transfer_handle) <= max_pkt_len) ? (gs_pldm_event_data.event_data_size - req_dat->data_transfer_handle) : max_pkt_len;
 
-    if ((gs_pldm_event_data.event_data_size + sizeof(u32)) <= max_pkt_len) {
+    if ((gs_pldm_event_data.event_data_size - req_dat->data_transfer_handle) <= max_pkt_len) {
         if (req_dat->transfer_op_flag == PLDM_TRANSFER_OP_FLAG_GET_FIRST_PART) {
             rsp_dat->transfer_flag = PLDM_TRANSFER_FLAG_START_AND_END;
         } else {
@@ -202,6 +203,7 @@ static void pldm_monitor_poll_for_platform_event_msg(protocol_msg_t *pkt, int *p
     *pkt_len += sizeof(pldm_poll_for_platform_event_msg_rsp_dat_t) + rsp_dat->event_datasize;
 
 L_ERR:
+    LOG("cpl_code : %#x, event_datasize : %d, rsp_dat->event_datasize : %d, req_dat->data_transfer_handle : %d", rsp_hdr->cpl_code, gs_pldm_event_data.event_data_size, rsp_dat->event_datasize, req_dat->data_transfer_handle);
     return;
 }
 
@@ -886,7 +888,7 @@ static void pldm_monitor_base_info_init(pldm_monitor_base_info_t *pldm_monitor_b
     pldm_monitor_base_info->repo_state = PLDM_REPO_AVAILABLE;
     pldm_monitor_base_info->event_receiver_eid = 0;
     pldm_monitor_base_info->terminus_mode = PLDM_DISABLE;
-    pldm_monitor_base_info->terminus_max_buffersize = PLDM_TERMINUS_DEFAULT_BUFFERSIZE;     /* default size. */
+    pldm_monitor_base_info->terminus_max_buffersize = 24;     /* default size. */
     pldm_monitor_base_info->pldm_event_rbuf = pldm_event_rbuf_init();
     pdrs_pool_init((u32 *)gs_pdrs_buf);
     pldm_pdr_init(&(pldm_monitor_base_info->pldm_repo));
@@ -895,6 +897,9 @@ static void pldm_monitor_base_info_init(pldm_monitor_base_info_t *pldm_monitor_b
 void pldm_monitor_init(void)
 {
     pldm_monitor_base_info_init(&g_pldm_monitor_info);
+    g_pldm_monitor_info.terminus_mode = PLDM_ENABLE_ASYNC;
+    g_pldm_monitor_info.event_receiver_eid = 0x66;
+    g_pldm_monitor_info.tid = 0x67;
 
     pldm_assoc_pdr_init();
     pldm_terminus_locator_pdr_init();
@@ -904,6 +909,9 @@ void pldm_monitor_init(void)
 
     // g_pldm_monitor_info.pldm_repo.update_time =
     pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));
+    for (u8 i = 0; i < MAX_LAN_NUM; i++) {
+        pldm_link_handle(i, 1);
+    }
 }
 
 void pldm_monitor_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
