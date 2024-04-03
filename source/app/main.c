@@ -1,4 +1,5 @@
 #include "main.h"
+#include <pthread.h>
 #include "mctp_ctl.h"
 #include "pldm_redfish.h"
 #include "pldm_monitor.h"
@@ -141,7 +142,8 @@ void pldm_process(protocol_msg_t *pkt)
 
 void my_exit(void)
 {
-    fclose(g_fp);
+    if (g_fp)
+        fclose(g_fp);
     printf("before exit () !\n");
 }
 

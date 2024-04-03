@@ -45,7 +45,7 @@ extern FILE *g_fp;
         if (!g_fp) {\
             g_fp = fopen("log.txt", "w+"); \
         }\
-        fprintf(g_fp, "[%s][%06d]", __FUNCTION__, __LINE__);\
+        fprintf(g_fp, "[%20s][%06d]", __FUNCTION__, __LINE__);\
         fprintf(g_fp, __VA_ARGS__);\
         fprintf(g_fp, "\r\n"); \
     }while(0)
