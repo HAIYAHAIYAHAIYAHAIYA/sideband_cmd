@@ -112,7 +112,7 @@ pldm_redfish_dictionary_entry_t *pldm_cjson_dict_fill_sf(u8 *dict, pldm_redfish_
         } else {
             name = "";
         }
-        if (strcmp(name, root->name) == 0) {
+        if (cm_strcmp(name, root->name) == 0) {
             root->sflv.seq = tmp->sequence_num << 1;
             root->sflv.fmt = tmp->format;
             // LOG("name : %s, root->name : %s", name, root->name);
@@ -132,7 +132,7 @@ void pldm_cjson_anno_dict_fill_sf(u8 *anno_dict, pldm_cjson_t *root, u8 name_idx
 
     for (u16 k = 0; k < dict->entry_cnt; k++) {
         if (tmp->name_off) {
-            if (strcmp((char *)&anno_dict[tmp->name_off], &(root->name[name_idx])) == 0) {
+            if (cm_strcmp((char *)&anno_dict[tmp->name_off], &(root->name[name_idx])) == 0) {
                 root->sflv.seq = (tmp->sequence_num << 1) | 1;
                 root->sflv.fmt = tmp->format;
                 return;
@@ -278,6 +278,11 @@ pldm_cjson_t *pldm_cjson_read(pldm_cjson_t *root, u16 collection_skip, u16 colle
     g_is_find = NULL;
     pldm_cjson_find_name(root, "Members");
     if (g_is_find) {
+        if (collection_top == 0 || collection_skip == MAX_LAN_NUM) {
+            /* empty list */
+            g_is_find->child = NULL;
+            return root;
+        }
         pldm_cjson_t *start_member = g_is_find->child;
         pldm_cjson_t *end_member = NULL;
         for (u8 i = 0; i < collection_skip; i++) {
@@ -286,7 +291,12 @@ pldm_cjson_t *pldm_cjson_read(pldm_cjson_t *root, u16 collection_skip, u16 colle
         }
         g_is_find->child = start_member;
         end_member = start_member;
-        for (u8 i = 0; i < collection_top; i++) {
+
+        /* If the parameter for $top  exceeds the remaining number of members in a resource collection, the number returned shall be 
+            truncated to those remaining. */
+        u8 cnt = MIN(MAX_LAN_NUM - collection_skip, collection_top);
+
+        for (u8 i = 0; i < cnt; i++) {
             if (end_member->next)
                 end_member = end_member->next;
         }
@@ -724,6 +734,41 @@ pldm_cjson_t *pldm_cjson_create_networkadapter_v1_5_0_schema(u8 *dict, u8 *anno_
                 //     {1, BEJ_INT, 0, "PCIeDevices@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
             {0, BEJ_INT, 0, "MinAssignmentGroupSize", (char [2]){0x01, 0x00}},
             {0, BEJ_INT, 0, "NetworkPortMaxCount", (char [3]){0x00, 0x1, 0x00}},
+    };
+    pldm_cjson_create_schema(root, fmt);
+    pldm_cjson_t *new_root = NULL;
+    new_root = root->child;
+    root->child = NULL;
+    // pldm_cjson_delete_node(root);
+    root = NULL;
+    pldm_cjson_fill_comm_field_in_schema(new_root->child, "", 0, PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID, "NetworkAdapter.1_5_0.NetworkAdapter", "etag", NETWORK_ADAPTER);
+    pldm_redfish_dictionary_format_t *dict_ptr = (pldm_redfish_dictionary_format_t *)dict;
+    pldm_cjson_cal_sf_to_root(new_root->child, anno_dict, dict, &(dict_ptr->entry[0]), dict_ptr->entry_cnt);
+    return new_root->child;
+}
+
+/* to be determind */
+pldm_cjson_t *pldm_cjson_create_networkadapter_v1_5_0_schema_update(u8 *dict, u8 *anno_dict)
+{
+    pldm_cjson_t *root = pldm_cjson_create_obj();
+    pldm_cjson_schema_fmt_t fmt[] = {
+        {0, BEJ_SET, 1, "", ""},
+            {0, BEJ_SET, 2, "NetworkAdapter", ""},
+                {0, BEJ_SET, 1, "Actions", ""},
+                    {0, BEJ_SET, 1, "#NetworkAdapter.ResetSettingsToDefault", ""},
+                        {0, BEJ_STR, 0, "target", "?"},
+                {0, BEJ_ARRAY, 1, "Controllers", ""},
+                    {0, BEJ_SET, 1, "", ""},
+                        {0, BEJ_SET, 4, "ControllerCapabilities", ""},
+                            {0, BEJ_SET, 1, "DataCenterBridging", ""},
+                                {0, BEJ_BOOLEAN, 0, "Capable", "t"},
+                            {0, BEJ_INT, 0, "NetworkDeviceFunctionCount", (char [2]){MAX_LAN_NUM, 0x00}},
+                            {0, BEJ_INT, 0, "NetworkPortCount", (char [2]){MAX_LAN_NUM, 0x00}},
+                            {0, BEJ_SET, 2, "VirtualizationOffload", ""},
+                                {0, BEJ_SET, 1, "SRIOV", ""},
+                                    {0, BEJ_BOOLEAN, 0, "SRIOVVEPACapable", "t"},
+                                {0, BEJ_SET, 1, "VirtualFunction", ""},
+                                    {0, BEJ_INT, 0, "DeviceMaxCount", (char [3]){0x00, 0x1, 0x00}},
     };
     pldm_cjson_create_schema(root, fmt);
     pldm_cjson_t *new_root = NULL;

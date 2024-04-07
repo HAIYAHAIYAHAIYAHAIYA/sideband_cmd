@@ -64,4 +64,5 @@ pldm_cjson_t *pldm_cjson_add_item_to_obj(pldm_cjson_t *obj, pldm_bej_sflv_dat_t 
 void pldm_cjson_add_enum_to_obj(pldm_cjson_t *obj, u8 *dictionary, pldm_bej_sflv_dat_t *sflv, char *enum_name, char *enum_val);
 
 pldm_cjson_t *pldm_cjson_create_event_schema(u32 resource_id, u8 *dict, u8 *anno_dict, u8 link_state);
+pldm_cjson_t *pldm_cjson_create_networkadapter_v1_5_0_schema_update(u8 *dict, u8 *anno_dict);
 #endif /* __PLDM_CJSON_H__ */
