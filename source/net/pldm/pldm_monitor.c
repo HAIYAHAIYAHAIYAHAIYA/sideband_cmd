@@ -177,10 +177,17 @@ static void pldm_monitor_poll_for_platform_event_msg(protocol_msg_t *pkt, int *p
         goto L_ERR;
     }
 
-    u16 max_pkt_len = g_pldm_monitor_info.terminus_max_buffersize - PLDM_SYNC_SEND_FIELD_LEN - sizeof(u32);
-    rsp_dat->event_datasize = ((gs_pldm_event_data.event_data_size - req_dat->data_transfer_handle) <= max_pkt_len) ? (gs_pldm_event_data.event_data_size - req_dat->data_transfer_handle) : max_pkt_len;
+    u16 max_pkt_len = g_pldm_monitor_info.terminus_max_buffersize - PLDM_SYNC_SEND_FIELD_LEN;
+    u32 remain_bytes = gs_pldm_event_data.event_data_size - req_dat->data_transfer_handle;
+    rsp_dat->event_datasize = ((remain_bytes + 4) <= max_pkt_len) ? remain_bytes : max_pkt_len;
+    /*  If appending the DataIntegrityChecksum would cause this response message to exceed the 
+        negotiated maximum transfer chunk size (clause 10.2), the DataIntegrityChecksum shall be sent as 
+        the only data in another chunk. */
+    if (remain_bytes < max_pkt_len && (remain_bytes + 4) > max_pkt_len) {
+        rsp_dat->event_datasize = remain_bytes;
+    }
 
-    if ((gs_pldm_event_data.event_data_size - req_dat->data_transfer_handle) <= max_pkt_len) {
+    if ((remain_bytes + 4) <= max_pkt_len) {
         if (req_dat->transfer_op_flag == PLDM_TRANSFER_OP_FLAG_GET_FIRST_PART) {
             rsp_dat->transfer_flag = PLDM_TRANSFER_FLAG_START_AND_END;
         } else {
@@ -811,7 +818,7 @@ static void pldm_monitor_get_pdr(protocol_msg_t *pkt, int *pkt_len)
     gs_pdr_previous_data_transfer_handle = rsp_dat->next_data_transfer_handle;
     *pkt_len += sizeof(pldm_get_pdr_rsp_dat_t) + rsp_dat->rsp_cnt;
 L_ERR:
-    LOG("transfer_flag : %d, cpl code : %#x, req_dat->record_handle : %#x", rsp_dat->transfer_flag, rsp_hdr->cpl_code, req_dat->record_handle);
+    LOG("transfer_flag : %d, cpl code : %#x, req_dat->record_handle : %#x, rsp_cnt : %d", rsp_dat->transfer_flag, rsp_hdr->cpl_code, req_dat->record_handle, rsp_dat->rsp_cnt);
     return;
 }
 

@@ -167,6 +167,14 @@ static void pldm_pdr_insert(pldm_pdr_t *repo, pldm_pdr_record_t *insert_pdr)
     if (!repo || !insert_pdr) {
         return;
     }
+
+    if (insert_pdr->record_handle < repo->first->record_handle) {
+        pldm_pdr_record_t *tmp = repo->first;
+        repo->first = insert_pdr;
+        insert_pdr->next = tmp;
+        goto L_RET;
+    }
+
     pldm_pdr_record_t *insert_pos = pldm_find_insert(repo, insert_pdr->record_handle);
     pldm_pdr_record_t *insert_pos_next = insert_pos->next;
 
@@ -178,7 +186,7 @@ static void pldm_pdr_insert(pldm_pdr_t *repo, pldm_pdr_record_t *insert_pdr)
         repo->last = insert_pdr;
         insert_pdr->next = NULL;
     }
-
+L_RET:
     repo->size += insert_pdr->size;
     ++repo->record_count;
 }
@@ -231,6 +239,8 @@ int pldm_pdr_delete(pldm_pdr_t *repo, u16 record_handle)
             repo->size -= delete_pdr->size;
             --repo->record_count;
 
+            if (delete_pdr == repo->first) repo->first = delete_pdr->next;
+            if (delete_pdr == repo->last) repo->last = prev_pdr;
             prev_pdr->next = delete_pdr->next;
             delete_pdr->next = NULL;
             if (!(repo->is_deleted)) {
