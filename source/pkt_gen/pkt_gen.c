@@ -26,6 +26,7 @@ void pldm_gen_init(void)
     pldm_ctrl_gen_init();
     pldm_fwup_gen_init();
     pldm_monitor_gen_init();
+    pldm_redfish_gen_init();
 }
 
 u8 pldm_gen(int type, int cmd, u8 *buf)
@@ -53,7 +54,7 @@ u8 pldm_gen(int type, int cmd, u8 *buf)
             break;
 
         case MCTP_PLDM_REDFISH:
-
+            ret = pldm_redfish_state_transform_switch(cmd, buf);
             break;
 
         default:
@@ -86,7 +87,7 @@ u8 pldm_gen_manual(int type, int cmd, u8 *buf)
             break;
 
         case MCTP_PLDM_REDFISH:
-
+            pldm_redfish_gen(cmd, buf);
             break;
 
         default:
@@ -113,6 +114,7 @@ void pldm_gen_recv(u8 *msg, u8 type, u8 cmd_code)
             break;
 
         case MCTP_PLDM_REDFISH:
+            pldm_redfish_gen_recv(cmd_code, msg);
             break;
 
         default:
