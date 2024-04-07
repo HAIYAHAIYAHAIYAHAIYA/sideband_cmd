@@ -58,6 +58,7 @@ pldm_cjson_t *pldm_cjson_replace(pldm_cjson_t *root, pldm_cjson_t *replace_node)
 pldm_cjson_t *pldm_cjson_action(pldm_cjson_t *root);
 pldm_cjson_t *pldm_cjson_head(pldm_cjson_t *root);
 u16 pldm_cjson_cal_len_to_root(pldm_cjson_t *root, u8 op_type);
+void pldm_cjson_printf_root(pldm_cjson_t *root);
 
 pldm_cjson_t *pldm_cjson_add_item_to_obj(pldm_cjson_t *obj, pldm_bej_sflv_dat_t *sflv, char *name, char *val, u8 val_len);
 void pldm_cjson_add_enum_to_obj(pldm_cjson_t *obj, u8 *dictionary, pldm_bej_sflv_dat_t *sflv, char *enum_name, char *enum_val);

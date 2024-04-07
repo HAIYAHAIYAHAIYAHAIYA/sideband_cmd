@@ -10,7 +10,7 @@ typedef struct {
     u8 seq;
     u8 fmt;
     u16 len;
-    u8 sflv_len;
+    u16 sflv_len;
     u8 *val;
 } pldm_bej_sflv_t;
 
@@ -45,6 +45,6 @@ typedef enum {
 
 void pldm_bej_init(void);
 u8 *pldm_bej_encode(pldm_cjson_t *root, u8 *bej_buf);
-pldm_cjson_t *pldm_bej_decode(u8 *buf, u8 *anno_dict, u8 *dict, pldm_cjson_t *root);
+pldm_cjson_t *pldm_bej_decode(u8 *buf, u16 buf_len, u8 *anno_dict, u8 *dict, pldm_cjson_t *root);
 
 #endif /* __PLDM_BEJ_RESOLVE_H__ */
