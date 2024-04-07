@@ -64,7 +64,7 @@ int cmd_num_get(void)
 	scanf("%x", &choice);
     while ((confirm = getchar()) != '\n')//用户再次输入回车键才表示其真正确认
 		continue;
-    while (choice != 0xFF && (choice < 0 || choice > 0x53))//判断执行1-8，并且检测合法输入
+    while (choice != 0xFF && (choice < 0 || choice > 0x54))//判断执行1-8，并且检测合法输入
 	{
 		LOG("you input: '%d' err! need re input : ", choice);
 		scanf("%x", &choice);

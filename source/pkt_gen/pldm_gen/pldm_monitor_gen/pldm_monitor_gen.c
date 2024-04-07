@@ -148,6 +148,11 @@ static void pldm_monitor_gen_cmd_53(u8 *buf)
     gs_pldm_monitor_gen_state.event_id = PLDM_MONITOR_GEN_ENTER_CMD_53;
 }
 
+static void pldm_monitor_gen_cmd_54(u8 *buf)
+{
+    pldm_event_send_handle();
+}
+
 void pldm_monitor_gen(int cmd, u8 *buf)
 {
     gen_cmd cmds[] = {
@@ -188,7 +193,9 @@ void pldm_monitor_gen(int cmd, u8 *buf)
         pldm_monitor_gen_cmd_51(buf);
     } else if (cmd == 0x53) {
         pldm_monitor_gen_cmd_53(buf);
-    } else {
+    } else if (cmd == 0x54) {
+        pldm_monitor_gen_cmd_54(buf);
+    }else {
         gs_pldm_monitor_gen_state.event_id = PLDM_MONITOR_GEN_ENTER_CMD_UNKNOW;
         gen_cmd_unsupport(buf);
     }

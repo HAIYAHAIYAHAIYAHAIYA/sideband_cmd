@@ -134,7 +134,7 @@ static void pldm_monitor_poll_for_platform_event_msg(protocol_msg_t *pkt, int *p
     rsp_dat->tid = g_pldm_monitor_info.tid;
 
     if (pldm_event_rbuf_is_empty(g_pldm_monitor_info.pldm_event_rbuf)) {
-        // g_event_id = 1;
+        g_event_id = 1;
         rsp_dat->event_id = 0x0000;
         *pkt_len += sizeof(rsp_dat->event_id) + sizeof(rsp_dat->tid);
         g_pldm_monitor_info.terminus_mode = PLDM_ENABLE_ASYNC;                        /* exit poll state */

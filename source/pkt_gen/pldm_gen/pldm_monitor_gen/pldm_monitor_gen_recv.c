@@ -46,7 +46,7 @@ static void pldm_monitor_gen_recv_cmd_0a(u8 *buf)
 }
 
 extern u16 g_event_id;
-u8 op_cnt = 0;
+u8 op_cnt = 1;
 static void pldm_monitor_gen_recv_cmd_0b(u8 *buf)
 {
     pldm_poll_for_platform_event_msg_rsp_dat_t *rsp_dat = (pldm_poll_for_platform_event_msg_rsp_dat_t *)(buf + sizeof(pldm_response_t));
@@ -55,13 +55,12 @@ static void pldm_monitor_gen_recv_cmd_0b(u8 *buf)
         gs_pldm_monitor_gen_state.event_id = PLDM_MONITOR_GEN_NEED_POLL_EVENT;
         LOG("event_id : %d, event_class : %d, tid : %#x, transfer_flag : %d", rsp_dat->event_id, rsp_dat->event_class, rsp_dat->tid, rsp_dat->transfer_flag);
     } else {
-        if (op_cnt) return;
-        LOG("more event!");
+        op_cnt = op_cnt ^ 1;
         for (u8 i = 0; i < MAX_LAN_NUM; i++) {
-            pldm_link_handle(i, 0);
+            pldm_link_handle(i, op_cnt);
         }
+        LOG("more event! %d", op_cnt);
         LOG("g_event_id : %d", g_event_id);
-        op_cnt++;
     }
 }
 
