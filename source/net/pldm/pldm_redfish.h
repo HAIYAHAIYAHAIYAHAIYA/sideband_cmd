@@ -61,11 +61,11 @@
 
 #define DICT_FMT_HDR_LEN                                    (sizeof(pldm_redfish_dict_fmt_t))
 
-#define PLDM_REDFISH_ANNO_DICT_LEN                          (2560)
+#define PLDM_REDFISH_ANNO_DICT_LEN                          (2560)      /* 2551 */
 #define PLDM_REDFISH_ETH_INTERFACE_COLLECTION_DICT_LEN      (164)
 #define PLDM_REDFISH_ETH_INTERFACE_DICT_LEN                 (3068)
-#define PLDM_REDFISH_EVENT_DICT_LEN                         (1084)
-#define PLDM_REDFISH_MSG_REGISTER_DICT_LEN                  (276)
+#define PLDM_REDFISH_EVENT_DICT_LEN                         (1084)      /* 1075 */
+#define PLDM_REDFISH_MSG_REGISTER_DICT_LEN                  (276)       /* 268 */
 #define PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN               (4072)
 #define PLDM_REDFISH_NETWORK_DEV_FUNCS_DICT_LEN             (168)
 #define PLDM_REDFISH_NETWORK_DEV_FUNC_DICT_LEN              (3432)
@@ -525,7 +525,7 @@ void pldm_redfish_init(void);
 void pldm_redfish_op_triggered(void);
 void pldm_redfish_op_task(void *param);
 void pldm_redfish_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code);
-u8 pldm_redfish_get_dict_data(u32 resource_id, u8 *dict, u16 len);
+u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dict, u16 len);
 void pldm_redfish_op(void);
 
 #endif /* __PLDM_REDFISH_H__ */

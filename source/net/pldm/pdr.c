@@ -814,13 +814,13 @@ static u8 *pldm_redfish_resource_pdr_fill_middle1_part(u8 *middle1_part_pdr, u16
     return next_part;
 }
 
-static u8 *pldm_redfish_resource_pdr_fill_middle2_part(u8 *middle2_part_pdr, u32 resource_id, u32 major_schema_ver, char *major_schema_name)
+static u8 *pldm_redfish_resource_pdr_fill_middle2_part(u8 *middle2_part_pdr, u32 resource_id, u8 requested_schemaclass, u32 major_schema_ver, char *major_schema_name)
 {
     pldm_redfish_resource_pdr_middle2_part_t *middle2_part = (pldm_redfish_resource_pdr_middle2_part_t *)middle2_part_pdr;
     u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
     middle2_part->major_schema_ver = major_schema_ver;
     u8 dict[ALIGN(sizeof(pldm_redfish_dict_fmt_t) + sizeof(pldm_redfish_dictionary_format_t), 4)];
-    u8 ret = pldm_redfish_get_dict_data(resource_id, dict, sizeof(dict));
+    u8 ret = pldm_redfish_get_dict_data(resource_id, requested_schemaclass, dict, sizeof(dict));
     if (ret == true) {
         pldm_redfish_dict_fmt_t *dict_fmt = (pldm_redfish_dict_fmt_t *)dict;
         pldm_redfish_dictionary_format_t *dict_ptr = (pldm_redfish_dictionary_format_t *)dict_fmt->data;
@@ -867,7 +867,7 @@ static void pldm_redfish_add_network_adapter_pdr(void)
     CBIT(0), PLDM_REDFISH_EXTERNAL, proposed_containing_resource_name);
     next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
     next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID, 0xF1F5F000, major_schema_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID, SCHEMACLASS_MAJOR, 0xF1F5F000, major_schema_name);
     pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_NETWORK_ADAPTER_PDR_HANDLE);
 }
@@ -895,7 +895,7 @@ static void pldm_redfish_add_network_interface_pdr(void)
     CBIT(0), PLDM_REDFISH_EXTERNAL, proposed_containing_resource_name);
     next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
     next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_INTERFACE_RESOURCE_ID, 0xF1F2F000, major_schema_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_INTERFACE_RESOURCE_ID, SCHEMACLASS_MAJOR, 0xF1F2F000, major_schema_name);
     pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_NETWORK_INTERFACE_PDR_HANDLE);
 }
@@ -924,7 +924,7 @@ static void pldm_redfish_add_ports_pdr(void)
     CBIT(2), PLDM_REDFISH_EXTERNAL, proposed_containing_resource_name);
     next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
     next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PORTS_RESOURCE_ID, 0xFFFFFFFF, major_schema_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PORTS_RESOURCE_ID, SCHEMACLASS_MAJOR, 0xFFFFFFFF, major_schema_name);
     pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_PORTS_PDR_HANDLE);
 }
@@ -952,7 +952,7 @@ static void pldm_redfish_add_network_dev_funcs_pdr(void)
     CBIT(2), PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID, proposed_containing_resource_name);
     next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
     next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_DEV_FUNCS_RESOURCE_ID, 0xFFFFFFFF, major_schema_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_DEV_FUNCS_RESOURCE_ID, SCHEMACLASS_MAJOR, 0xFFFFFFFF, major_schema_name);
     pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_NETWORK_DEV_FUNCS_PDR_HANDLE);
 }
@@ -991,7 +991,7 @@ static void pldm_redfish_add_port_pdr(void)
     CBIT(1), PLDM_REDFISH_EXTERNAL, proposed_containing_resource_name);
     next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
     next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, MAX_LAN_NUM, add_info, (char *)add_suburi);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PORT_RESOURCE_ID, 0xF1F3F100, major_schema_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PORT_RESOURCE_ID, SCHEMACLASS_MAJOR, 0xF1F3F100, major_schema_name);
     pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_PORT_PDR_HANDLE);
 }
@@ -1035,7 +1035,7 @@ static void pldm_redfish_add_network_dev_func_pdr(void)
     CBIT(1), PLDM_BASE_NETWORK_DEV_FUNCS_RESOURCE_ID, proposed_containing_resource_name);
     next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
     next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 2 * MAX_LAN_NUM, add_info, (char *)add_suburi);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID, 0xF1F3F000, major_schema_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID, SCHEMACLASS_MAJOR, 0xF1F3F000, major_schema_name);
     pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_NETWORK_DEV_FUNC_PDR_HANDLE);
 }
@@ -1063,7 +1063,7 @@ static void pldm_redfish_add_pcie_funcs_pdr(void)
     CBIT(2), PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID, proposed_containing_resource_name);
     next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
     next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PCIE_FUNCS_RESOURCE_ID, 0xFFFFFFFF, major_schema_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PCIE_FUNCS_RESOURCE_ID, SCHEMACLASS_MAJOR, 0xFFFFFFFF, major_schema_name);
     pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_PCIE_FUNCS_PDR_HANDLE);
 }
@@ -1104,7 +1104,7 @@ static void pldm_redfish_add_pcie_func_pdr(void)
     CBIT(1), PLDM_BASE_PCIE_FUNCS_RESOURCE_ID, proposed_containing_resource_name);
     next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
     next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, MAX_LAN_NUM, add_info, (char *)add_suburi);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PCIE_FUNC_RESOURCE_ID, 0xF1F2F100, major_schema_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PCIE_FUNC_RESOURCE_ID, SCHEMACLASS_MAJOR, 0xF1F2F100, major_schema_name);
     pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_PCIE_FUNC_PDR_HANDLE);
 }
@@ -1132,7 +1132,7 @@ static void pldm_redfish_add_eth_interface_collection_pdr(void)
     CBIT(2) | CBIT(0), PLDM_REDFISH_EXTERNAL, proposed_containing_resource_name);
     next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
     next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_ETH_INTERFACE_COLLECTION_RESOURCE_ID, 0xFFFFFFFF, major_schema_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_ETH_INTERFACE_COLLECTION_RESOURCE_ID, SCHEMACLASS_MAJOR, 0xFFFFFFFF, major_schema_name);
     pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_ETH_INTERFACE_COLLECTION_PDR_HANDLE);
 }
@@ -1176,7 +1176,7 @@ static void pldm_redfish_add_eth_interface_pdr(void)
     CBIT(1), PLDM_BASE_ETH_INTERFACE_COLLECTION_RESOURCE_ID, proposed_containing_resource_name);
     next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
     next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 2 * MAX_LAN_NUM, add_info, (char *)add_suburi);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_ETH_INTERFACE_RESOURCE_ID, 0xF1F4F100, major_schema_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_ETH_INTERFACE_RESOURCE_ID, SCHEMACLASS_MAJOR, 0xF1F4F100, major_schema_name);
     pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_ETH_INTERFACE_PDR_HANDLE);
 }

@@ -818,7 +818,7 @@ static void pldm_monitor_get_pdr(protocol_msg_t *pkt, int *pkt_len)
     gs_pdr_previous_data_transfer_handle = rsp_dat->next_data_transfer_handle;
     *pkt_len += sizeof(pldm_get_pdr_rsp_dat_t) + rsp_dat->rsp_cnt;
 L_ERR:
-    LOG("transfer_flag : %d, cpl code : %#x, req_dat->record_handle : %#x, rsp_cnt : %d", rsp_dat->transfer_flag, rsp_hdr->cpl_code, req_dat->record_handle, rsp_dat->rsp_cnt);
+    LOG("transfer_flag : %d, cpl code : %#x, req_dat->record_handle : %d, rsp_cnt : %d", rsp_dat->transfer_flag, rsp_hdr->cpl_code, req_dat->record_handle, rsp_dat->rsp_cnt);
     return;
 }
 

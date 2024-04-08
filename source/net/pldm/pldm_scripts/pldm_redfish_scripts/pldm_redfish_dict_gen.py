@@ -28,8 +28,8 @@ class macros:
     PLDM_BASE_ETH_INTERFACE_RESOURCE_ID_1 = 410
     PLDM_BASE_RESET_SET2DEFAULE_RESOURCE_ID = 2001
     PLDM_BASE_PORT_RESET_RESOURCE_ID = 2002
-    PLDM_BASE_ANNOTATION_DICT_RESOURCE_ID = 2003
-    PLDM_BASE_EVENT_DICT_RESOURCE_ID = 2004
+    PLDM_BASE_ANNOTATION_DICT_RESOURCE_ID = 0xFFFFFFFF
+    PLDM_BASE_EVENT_DICT_RESOURCE_ID = 0xFFFFFFFF
     PLDM_BASE_REGISTER_DICT_RESOURCE_ID = 0xFFFFFFFF
 
     MAJOR = 0
@@ -60,20 +60,20 @@ resource_id = [
         macros.PLDM_BASE_PORT_RESOURCE_ID]
 
 schema_class = [
-    macros.ANNOTATION,
+    BIT(macros.ANNOTATION),
     BIT(macros.MAJOR) | BIT(macros.COLLECTION_MEMBER_TYPE),
-    macros.MAJOR,
-    macros.EVENT,
-    macros.REGISTRY,
-    macros.MAJOR,
+    BIT(macros.MAJOR),
+    BIT(macros.EVENT),
+    BIT(macros.REGISTRY),
+    BIT(macros.MAJOR),
     BIT(macros.MAJOR) | BIT(macros.COLLECTION_MEMBER_TYPE),
-    macros.MAJOR,
-    macros.MAJOR,
+    BIT(macros.MAJOR),
+    BIT(macros.MAJOR),
     BIT(macros.MAJOR) | BIT(macros.COLLECTION_MEMBER_TYPE),
-    macros.MAJOR,
-    macros.MAJOR,
+    BIT(macros.MAJOR),
+    BIT(macros.MAJOR),
     BIT(macros.MAJOR) | BIT(macros.COLLECTION_MEMBER_TYPE),
-    macros.MAJOR]
+    BIT(macros.MAJOR)]
 
 # class param_t:
 #     def __init__(self):

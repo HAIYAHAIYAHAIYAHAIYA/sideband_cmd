@@ -94,6 +94,15 @@ static void pldm_fwup_gen_recv_cmd_1a(u8 *buf)
 
 static void pldm_fwup_gen_recv_cmd_1b(u8 *buf)
 {
+    pldm_fwup_get_status_rsp_dat_t *rsp_dat = (pldm_fwup_get_status_rsp_dat_t *)(buf + sizeof(pldm_response_t));
+    LOG("%s", __FUNCTION__);
+    LOG("cur_state : %d", rsp_dat->cur_state);
+    LOG("prev_state : %d", rsp_dat->prev_state);
+    LOG("aux_state : %d", rsp_dat->aux_state);
+    LOG("aux_state_status : %d", rsp_dat->aux_state_status);
+    LOG("progress_percent : %#x", rsp_dat->progress_percent);
+    LOG("reason_code : %d", rsp_dat->reason_code);
+    LOG("ud_option_flag_en : %#x", rsp_dat->ud_option_flag_en);
     gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_FD_IS_UPDATE;
 }
 

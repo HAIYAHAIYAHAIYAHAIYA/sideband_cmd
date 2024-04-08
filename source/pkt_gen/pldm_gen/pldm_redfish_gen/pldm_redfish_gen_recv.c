@@ -20,10 +20,15 @@ static void pldm_redfish_gen_recv_cmd_02(u8 *buf)
 static pldm_redfish_rde_multipart_receive_req_dat_t multi_recv_rsp_dat; 
 static void pldm_redfish_gen_recv_cmd_03(u8 *buf)
 {
+    pldm_response_t *rsp_hdr = (pldm_response_t *)buf;
     pldm_redfish_get_schema_dictionary_rsp_dat_t *rsp_dat = (pldm_redfish_get_schema_dictionary_rsp_dat_t *)(buf + sizeof(pldm_response_t));
     multi_recv_rsp_dat.data_transfer_handle = rsp_dat->transfer_handle;
     multi_recv_rsp_dat.op_id = 0;
-    gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_NEED_MULTI_RECV;
+    if (rsp_hdr->cpl_code == MCTP_COMMAND_SUCCESS) {
+        gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_NEED_MULTI_RECV;
+    } else {
+        gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_UNKNOW;
+    }
 }
 
 static void pldm_redfish_gen_recv_cmd_04(u8 *buf)

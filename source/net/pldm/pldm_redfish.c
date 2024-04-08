@@ -189,10 +189,11 @@ static void pldm_redfish_get_schema_dictionary(protocol_msg_t *pkt, int *pkt_len
     int resource_identify = schema_transfer_handle_get(req_dat->resource_id, req_dat->requested_schemaclass);
     if ((resource_identify == PLDM_ERROR_NO_SUCH_RESOURCE) || (resource_identify == PLDM_ERROR_UNSUPPORTED) || (resource_identify == PLDM_ERROR_INVALID_DATA)) {
         rsp_hdr->cpl_code = resource_identify;
+        LOG("%s, cpl_code : %#x", __FUNCTION__, rsp_hdr->cpl_code);
         return;
     }
 
-    u8 ret = pldm_redfish_get_dict_data(req_dat->resource_id, g_needed_dict, pldm_redfish_get_dict_len(req_dat->resource_id));
+    u8 ret = pldm_redfish_get_dict_data(req_dat->resource_id, req_dat->requested_schemaclass, g_needed_dict, pldm_redfish_get_dict_len(req_dat->resource_id));
     if (ret) {
         pldm_redfish_dictionary_format_t *dict_fmt = (pldm_redfish_dictionary_format_t *)&(g_needed_dict[DICT_FMT_HDR_LEN]);
         gs_op_buf.buf_ptr.len = dict_fmt->dictionary_size;
@@ -329,7 +330,7 @@ static void pldm_redfish_get_msg_registry(protocol_msg_t *pkt, int *pkt_len)
         return;
     }
 
-    u8 ret = pldm_redfish_get_dict_data(PLDM_BASE_REGISTER_DICT_RESOURCE_ID, g_needed_dict, PLDM_REDFISH_MSG_REGISTER_DICT_LEN);
+    u8 ret = pldm_redfish_get_dict_data(PLDM_BASE_REGISTER_DICT_RESOURCE_ID, SCHEMACLASS_REGISTRY, g_needed_dict, PLDM_REDFISH_MSG_REGISTER_DICT_LEN);
     if (ret) {
         pldm_redfish_dictionary_format_t *dict_fmt = (pldm_redfish_dictionary_format_t *)&(g_needed_dict[DICT_FMT_HDR_LEN]);
         gs_op_buf.buf_ptr.len = dict_fmt->dictionary_size;
@@ -428,7 +429,7 @@ L_ERR:
     rsp_dat->etag.len = 0;
 
     *pkt_len += sizeof(pldm_redfish_rde_operation_init_rsp_dat_t);
-    LOG("cpl_code : %#x, resource_id : %lld, op_id : %d", rsp_hdr->cpl_code, req_dat->op_identify.resource_id, req_dat->op_identify.op_id);
+    LOG("cpl_code : %#x, resource_identify : %d, resource_id : %d, op_id : %d", rsp_hdr->cpl_code, resource_identify, req_dat->op_identify.resource_id, req_dat->op_identify.op_id);
 }
 
 static void pldm_redfish_supply_custom_request_parameters(protocol_msg_t *pkt, int *pkt_len)
@@ -899,12 +900,12 @@ static void CM_FLASH_READ(u32 offset, u32 *buf, u32 size)
 }
 
 // /* max dict is 8k, len is dw align */
-u8 pldm_redfish_get_dict_data(u32 resource_id, u8 *dict, u16 len)
+u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dict, u16 len)
 {
     u32 dict_addr = 0;
     pldm_redfish_dict_hdr_t *dict_info  = (pldm_redfish_dict_hdr_t *)g_dict_info;
     for (u8 i = 0; i < dict_info->num_of_dict; i++) {
-        if (resource_id == dict_info->dict_info[i].resource_id) {
+        if (resource_id == dict_info->dict_info[i].resource_id && (BIT(requested_schemaclass) & dict_info->dict_info[i].schema_class)) {
             dict_addr = dict_info->dict_info[i].offset;
             break;
         }
@@ -913,7 +914,7 @@ u8 pldm_redfish_get_dict_data(u32 resource_id, u8 *dict, u16 len)
         // LOG("dict_addr : %d", dict_addr);
         CM_FLASH_READ(PLDM_REDFISH_DICT_BASE_ADDR + dict_addr, (u32 *)dict, len / sizeof(u32));
     } else {
-        LOG("not found dict data, resource_id : %d", resource_id);
+        LOG("not found dict data, resource_id : %d, requested_schemaclass : %d", resource_id, requested_schemaclass);
         return false;
     }
     return true;
@@ -935,8 +936,6 @@ u16 pldm_redfish_get_dict_len(u32 resource_id)
         PLDM_BASE_PCIE_FUNC_RESOURCE_ID,
         PLDM_BASE_ETH_INTERFACE_RESOURCE_ID,
         PLDM_BASE_ANNOTATION_DICT_RESOURCE_ID,
-        PLDM_BASE_EVENT_DICT_RESOURCE_ID,
-        PLDM_BASE_REGISTER_DICT_RESOURCE_ID
     };
     u32 dict_len[] = {
         PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN,
@@ -951,11 +950,9 @@ u16 pldm_redfish_get_dict_len(u32 resource_id)
         PLDM_REDFISH_PCIE_FUNC_DICT_LEN,
         PLDM_REDFISH_ETH_INTERFACE_DICT_LEN,
         PLDM_REDFISH_ANNO_DICT_LEN,
-        PLDM_REDFISH_EVENT_DICT_LEN,
-        PLDM_REDFISH_MSG_REGISTER_DICT_LEN
     };
     u8 left = 0;
-    u8 right = PLDM_REDFISH_DICT_NUM - 1;
+    u8 right = sizeof(dict_resource_id) / sizeof(u32) - 1;
     while (left <= right) {
         u8 mid = (left + right) / 2;
         if (dict_resource_id[mid] < resource_id) {
@@ -990,7 +987,7 @@ void pldm_redfish_init(void)
     pldm_bej_init();
     CM_FLASH_READ(PLDM_REDFISH_DICT_BASE_ADDR, (u32 *)g_dict_info, PLDM_REDFISH_DICT_INFO_LEN / sizeof(u32));
 
-    pldm_redfish_get_dict_data(PLDM_BASE_ANNOTATION_DICT_RESOURCE_ID, g_anno_dict, sizeof(g_anno_dict));
+    pldm_redfish_get_dict_data(PLDM_BASE_ANNOTATION_DICT_RESOURCE_ID, SCHEMACLASS_ANNOTATION, g_anno_dict, PLDM_REDFISH_ANNO_DICT_LEN);
 }
 
 void pldm_redfish_op(void)
@@ -1009,7 +1006,7 @@ void pldm_redfish_op(void)
 
         resourse_indenty -= NETWORK_ADAPTER;
 
-        u8 ret = pldm_redfish_get_dict_data(g_pldm_redfish_base_info.prev_op_identify.resource_id, \
+        u8 ret = pldm_redfish_get_dict_data(g_pldm_redfish_base_info.prev_op_identify.resource_id, SCHEMACLASS_MAJOR,\
         g_needed_dict, pldm_redfish_get_dict_len(g_pldm_redfish_base_info.prev_op_identify.resource_id));
         if (ret == false) goto L_EXIT;
 

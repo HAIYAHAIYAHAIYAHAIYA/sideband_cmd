@@ -22,6 +22,22 @@ static int dict_resource_id[] = {
         PLDM_BASE_EVENT_DICT_RESOURCE_ID,
         PLDM_BASE_REGISTER_DICT_RESOURCE_ID
     };
+static int dict_schemaclass[] = {
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_MAJOR,
+        SCHEMACLASS_ANNOTATION,
+        SCHEMACLASS_EVENT,
+        SCHEMACLASS_REGISTRY
+    };
 static void pldm_redfish_gen_cmd_01(u8 *buf)
 {
     pldm_redfish_negotiate_redfish_parameters_req_dat_t *req_dat = (pldm_redfish_negotiate_redfish_parameters_req_dat_t *)buf;
@@ -41,9 +57,9 @@ static u8 idx = 0;
 static void pldm_redfish_gen_cmd_03(u8 *buf)
 {
     pldm_redfish_get_schema_dictionary_req_dat_t *req_dat = (pldm_redfish_get_schema_dictionary_req_dat_t *)buf;
-    req_dat->resource_id = dict_resource_id[idx++];
+    req_dat->resource_id = dict_resource_id[idx];
     g_cur_op_identify.op_id = 0;
-    req_dat->requested_schemaclass = SCHEMACLASS_MAJOR;
+    req_dat->requested_schemaclass = dict_schemaclass[idx++];
     gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_03;
     if (idx >= PLDM_REDFISH_DICT_NUM) idx = 0;
 }
@@ -51,16 +67,9 @@ static void pldm_redfish_gen_cmd_03(u8 *buf)
 static void pldm_redfish_gen_cmd_04(u8 *buf)
 {
     pldm_redfish_get_schema_uri_req_dat_t *req_dat = (pldm_redfish_get_schema_uri_req_dat_t *)buf;
-    req_dat->resource_id = dict_resource_id[idx++];
-    if (req_dat->resource_id == PLDM_BASE_ANNOTATION_DICT_RESOURCE_ID) {
-        req_dat->requested_schemaclass = SCHEMACLASS_ANNOTATION;
-    } else if (req_dat->resource_id == PLDM_BASE_EVENT_DICT_RESOURCE_ID) {
-        req_dat->requested_schemaclass = SCHEMACLASS_EVENT;
-    } else if (req_dat->resource_id == PLDM_BASE_REGISTER_DICT_RESOURCE_ID) {
-        req_dat->requested_schemaclass = SCHEMACLASS_REGISTRY;
-    } else {
-        req_dat->requested_schemaclass = SCHEMACLASS_MAJOR;
-    }
+    req_dat->resource_id = dict_resource_id[idx];
+    req_dat->requested_schemaclass = dict_schemaclass[idx++];;
+
     gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_04;
     if (idx >= PLDM_REDFISH_DICT_NUM) idx = 0;
 }
@@ -116,7 +125,7 @@ static void pldm_redfish_gen_cmd_10(u8 *buf)
     // if (g_cur_op_identify.resource_id == 0) {
         g_cur_op_identify.resource_id = dict_resource_id[idx++];
         g_cur_op_identify.op_id = idx | CBIT(15);
-        g_cur_op_identify.op_flg = CBIT(2);
+        g_cur_op_identify.op_flg = 0;
         idx++;
         if (idx >= PLDM_REDFISH_DICT_NUM) idx = 0;
     // }
@@ -133,7 +142,7 @@ static void pldm_redfish_gen_cmd_10(u8 *buf)
         pldm_cjson_t *root = NULL;
         u8 *annc_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
         u8 *dict = &g_needed_dict[DICT_FMT_HDR_LEN];
-        u8 ret = pldm_redfish_get_dict_data(g_cur_op_identify.resource_id, \
+        u8 ret = pldm_redfish_get_dict_data(g_cur_op_identify.resource_id, SCHEMACLASS_MAJOR,\
         g_needed_dict, pldm_redfish_get_dict_len(g_cur_op_identify.resource_id));
         if (ret == false) LOG("%s, pldm_redfish_get_dict_data err.", __FUNCTION__);
 

@@ -215,7 +215,7 @@ void pldm_redfish_msg_event_generate(void *p, u8 link_state)
     u8 event_dict[PLDM_REDFISH_EVENT_DICT_LEN];
     u8 event_buf[128] = {0};
 
-    u8 ret = pldm_redfish_get_dict_data(PLDM_BASE_EVENT_DICT_RESOURCE_ID, event_dict, sizeof(event_dict));
+    u8 ret = pldm_redfish_get_dict_data(PLDM_BASE_EVENT_DICT_RESOURCE_ID, SCHEMACLASS_EVENT, event_dict, PLDM_REDFISH_EVENT_DICT_LEN);
     if (ret == false) return;
 
     u8 *annc_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
