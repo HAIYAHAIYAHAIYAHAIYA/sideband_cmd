@@ -20,6 +20,7 @@
 #define cm_strlen                       strlen
 #define cm_strcmp                       strcmp
 #define cm_sprintf                      sprintf
+#define cm_snprintf                     snprintf
 
 #define CM_PLDM_FWUP_START_UPDATE() \
 do {\

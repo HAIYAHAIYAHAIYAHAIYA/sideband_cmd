@@ -429,7 +429,7 @@ L_ERR:
     rsp_dat->etag.len = 0;
 
     *pkt_len += sizeof(pldm_redfish_rde_operation_init_rsp_dat_t);
-    LOG("cpl_code : %#x, resource_identify : %d, resource_id : %d, op_id : %d", rsp_hdr->cpl_code, resource_identify, req_dat->op_identify.resource_id, req_dat->op_identify.op_id);
+    LOG("cpl_code : %#x, resource_identify : %d, resource_id : %lld, op_id : %d", rsp_hdr->cpl_code, resource_identify, req_dat->op_identify.resource_id, req_dat->op_identify.op_id);
 }
 
 static void pldm_redfish_supply_custom_request_parameters(protocol_msg_t *pkt, int *pkt_len)
@@ -707,6 +707,7 @@ static void pldm_redfish_rde_operation_kill(protocol_msg_t *pkt, int *pkt_len)
         /* The RDE Device shall kill the Operation if the Operation can be killed;  */
         pldm_redfish_clear_op_param();
     }
+    LOG("%s, cpl_code : %#x, resource_id : %lld", __FUNCTION__, rsp_hdr->cpl_code, req_dat->op_identify.resource_id);
 }
 
 static void pldm_redfish_rde_operation_enumerate(protocol_msg_t *pkt, int *pkt_len)
@@ -1084,9 +1085,9 @@ void pldm_redfish_op(void)
         }
         // root = NULL;
         // pldm_cjson_pool_reinit();
-        // bej_root = pldm_bej_decode(gs_op_buf.op_result.data, gs_op_buf.op_result.len, annc_dict, dict, bej_root);
+        // bej_root = pldm_bej_decode(&(gs_op_buf.op_result.data[sizeof(bejencoding_t)]), gs_op_buf.op_result.len - sizeof(bejencoding_t), annc_dict, dict, bej_root);
         // if (bej_root) {
-        //     // pldm_cjson_printf_root(bej_root);
+        //     pldm_cjson_printf_root(bej_root);
         //     LOG("Decode success");
         // }
         if (root && gs_op_info.op_type != READ && gs_op_info.op_type != HEAD) {
