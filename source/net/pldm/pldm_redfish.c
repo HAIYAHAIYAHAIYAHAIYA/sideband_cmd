@@ -899,10 +899,30 @@ static void CM_FLASH_READ(u32 offset, u32 *buf, u32 size)
     fclose(fp);
 }
 
+static u32 pldm_redfish_resource_id_to_base(u32 resource_id)
+{
+    if (resource_id >= PLDM_BASE_PORT_RESOURCE_ID && resource_id <= PLDM_MAX_ETH_INTERFACE_RESOURCE_ID_1) {
+        if (((resource_id <= PLDM_MAX_PORT_RESOURCE_ID) && (resource_id >= PLDM_BASE_PORT_RESOURCE_ID)) || \
+            ((resource_id <= PLDM_MAX_PORT_RESOURCE_ID_1) && (resource_id >= PLDM_BASE_PORT_RESOURCE_ID_1))) {
+            resource_id = PLDM_BASE_PORT_RESOURCE_ID;
+        } else if (((resource_id <= PLDM_MAX_NETWORK_DEV_FUNC_RESOURCE_ID) && (resource_id >= PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID)) || \
+            ((resource_id <= PLDM_MAX_NETWORK_DEV_FUNC_RESOURCE_ID_1) && (resource_id >= PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID_1))) {
+            resource_id = PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID;
+        } else if ((resource_id <= PLDM_MAX_PCIE_FUNC_RESOURCE_ID) && (resource_id >= PLDM_BASE_PCIE_FUNC_RESOURCE_ID)) {
+            resource_id = PLDM_BASE_PCIE_FUNC_RESOURCE_ID;
+        } else if (((resource_id <= PLDM_MAX_ETH_INTERFACE_RESOURCE_ID) && (resource_id >= PLDM_BASE_ETH_INTERFACE_RESOURCE_ID)) || \
+            ((resource_id <= PLDM_MAX_ETH_INTERFACE_RESOURCE_ID_1) && (resource_id >= PLDM_BASE_ETH_INTERFACE_RESOURCE_ID_1))) {
+            resource_id = PLDM_BASE_ETH_INTERFACE_RESOURCE_ID;
+        }
+    }
+    return resource_id;
+}
+
 // /* max dict is 8k, len is dw align */
 u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dict, u16 len)
 {
     u32 dict_addr = 0;
+    resource_id = pldm_redfish_resource_id_to_base(resource_id);
     pldm_redfish_dict_hdr_t *dict_info  = (pldm_redfish_dict_hdr_t *)g_dict_info;
     for (u8 i = 0; i < dict_info->num_of_dict; i++) {
         if (resource_id == dict_info->dict_info[i].resource_id && (BIT(requested_schemaclass) & dict_info->dict_info[i].schema_class)) {
@@ -923,6 +943,7 @@ u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dic
 u16 pldm_redfish_get_dict_len(u32 resource_id)
 {
     u16 len = 0;
+    resource_id = pldm_redfish_resource_id_to_base(resource_id);
     u32 dict_resource_id[] = {
         PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID,
         PLDM_BASE_PCIE_DEV_RESOURCE_ID,
