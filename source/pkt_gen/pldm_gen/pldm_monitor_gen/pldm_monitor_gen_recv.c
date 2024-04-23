@@ -122,6 +122,7 @@ static void pldm_monitor_gen_recv_cmd_50(u8 *buf)
 static pldm_get_pdr_rsp_dat_t get_pdr_rsp_dat;
 u8 pdr_size = 0;
 u8 pdr_cnt = 0;
+
 static void pldm_monitor_gen_recv_cmd_51(u8 *buf)
 {
     pldm_get_pdr_rsp_dat_t *rsp_dat = (pldm_get_pdr_rsp_dat_t *)(buf + sizeof(pldm_response_t));
@@ -130,7 +131,7 @@ static void pldm_monitor_gen_recv_cmd_51(u8 *buf)
     if (rsp_hdr->cpl_code == MCTP_COMMAND_SUCCESS) {
         // LOG("next record hdl : %d, rsp_cnt : %d, next_data_transfer_handle : %d", rsp_dat->next_record_handle, rsp_dat->rsp_cnt, rsp_dat->next_data_transfer_handle);
         pdr_size += rsp_dat->rsp_cnt;
-        if (rsp_dat->transfer_flag == PLDM_TRANSFER_FLAG_END) {
+        if (rsp_dat->transfer_flag == PLDM_TRANSFER_FLAG_END || rsp_dat->transfer_flag == PLDM_TRANSFER_FLAG_START_AND_END) {
             pdr_cnt++;
             LOG("pdr_cnt : %d, pdr_size : %d", pdr_cnt, pdr_size);
             pdr_size = 0;

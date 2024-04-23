@@ -34,6 +34,7 @@ typedef struct {
 typedef enum {
     MCTP_PLDM_CONTROL = 0x00,   /* E810_Datasheet_Rev2.3.pdf, 12.8.1.2 */
     MCTP_PLDM_MONITOR = 0x02,   /* E810_Datasheet_Rev2.3.pdf, 12.8.2.1 */
+    MCTP_PLDM_FRU_DATA = 0x04,
     MCTP_PLDM_UPDATE = 0x05,    /* E810_Datasheet_Rev2.3.pdf, 12.8.4 */
     MCTP_PLDM_REDFISH = 0x06,
 } mctp_pldm_type_t;

@@ -15,6 +15,13 @@ void pldm_unsupport_cmd(protocol_msg_t *pkt, int *pkt_len)
 void pldm_ctrl_set_tid(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_set_tid_req_dat_t *req_dat = (pldm_set_tid_req_dat_t *)(pkt->req_buf);
+    pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->rsp_buf - sizeof(pldm_response_t));
+
+    if (req_dat->tid == 0x0 || req_dat->tid == 0xff) {
+        rsp_hdr->cpl_code = MCTP_COMMAND_INVALIDDATA;
+        return;
+    }
+
     g_pldm_monitor_info.tid = req_dat->tid;
     // terminus_locator_pdr_chg();
     LOG("%s tid : %#x", __FUNCTION__, req_dat->tid);
@@ -35,7 +42,7 @@ static void pldm_ctrl_get_ver(protocol_msg_t *pkt, int *pkt_len)
     pldm_get_ver_rsp_dat_t *rsp_dat = (pldm_get_ver_rsp_dat_t *)(pkt->rsp_buf);
     pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->rsp_buf - sizeof(pldm_response_t));
     if (req_dat->trans_op_flag != GET_FIRST_PART) {
-        rsp_hdr->cpl_code = MCTP_PLDM_INVALID_DATA_TRANSFER_HANDLE;
+        rsp_hdr->cpl_code = MCTP_PLDM_INVALID_TRANSFER_OPERATION_FLAG;
     }
 
     u32 pldm_type = req_dat->pldm_type;
@@ -46,6 +53,10 @@ static void pldm_ctrl_get_ver(protocol_msg_t *pkt, int *pkt_len)
 
         case PLDM_FOR_PLATFORM_MONITORING_AND_CONTROL :
             rsp_dat->pldm_ver = PLDM_TYPE_2_VERSION;
+            break;
+
+        case PLDM_FOR_FRU_DATA :
+            rsp_dat->pldm_ver = PLDM_TYPE_4_VERSION;
             break;
 
         case PLDM_FOR_FIRMWARE_UPDATE :
@@ -72,7 +83,7 @@ static void pldm_ctrl_get_type(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_get_type_rsp_dat_t *rsp_dat = (pldm_get_type_rsp_dat_t *)(pkt->rsp_buf);
     u8 pldmtype = 0;
-    pldmtype = CBIT(0) | CBIT(2) | CBIT(5) | CBIT(6);    // MCTP_PLDM_CONTROL, MCTP_PLDM_MONITOR, MCTP_PLDM_UPDATE, MCTP_PLDM_REDFISH
+    pldmtype = CBIT(0) | CBIT(2) | CBIT(4) | CBIT(5) | CBIT(6);    // MCTP_PLDM_CONTROL, MCTP_PLDM_MONITOR, MCTP_PLDM_FRU_DATA, MCTP_PLDM_UPDATE, MCTP_PLDM_REDFISH
 
     rsp_dat->pldmtype = pldmtype;
     LOG("%s pldmtype : %#x", __FUNCTION__, pldmtype);
@@ -102,6 +113,14 @@ static void pldm_ctrl_get_cmd(protocol_msg_t *pkt, int *pkt_len)
                 pldm_command[0] = 0x002F3C38;
                 pldm_command[1] = 0x00000003;
                 pldm_command[2] = 0x000b0000;
+            } else {
+                rsp_hdr->cpl_code = MCTP_PLDM_INVALID_PLDM_VERSION_IN_REQUEST_DATA;
+            }
+            break;
+
+        case MCTP_PLDM_FRU_DATA:
+            if (version == PLDM_TYPE_4_VERSION) {
+                pldm_command[0] = 0x6;
             } else {
                 rsp_hdr->cpl_code = MCTP_PLDM_INVALID_PLDM_VERSION_IN_REQUEST_DATA;
             }

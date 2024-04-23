@@ -5,7 +5,7 @@
 #include "pldm_monitor.h"
 
 #define PLDM_MONITOR_CMD_GEN(num)                  pldm_monitor_gen_cmd_ ## num
-#define PLDM_MONITOR_GET_PDR_REQ_CNT               (12)
+#define PLDM_MONITOR_GET_PDR_REQ_CNT               (67)
 
 typedef enum {
     PLDM_MONITOR_GEN_IDLE = 0,

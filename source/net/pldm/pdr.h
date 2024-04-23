@@ -12,6 +12,7 @@ typedef enum {
     NUMERIC_SENSOR_PDR = 2,
     STATE_SENSOR_PDR = 4,
     ENTITY_ASSOC_PDR = 15,
+    FRU_RECORD_SET_PDR = 20,
     REDFISH_RESOURCE_PDR = 22,
     REDFISH_ACTION_PDR = 24
 } pldm_pdr_type_t;
@@ -183,7 +184,7 @@ typedef struct pldm_pdr_record {
 } pldm_pdr_record_t;
 
 typedef struct {
-    u16 utc_offset;
+    s16 utc_offset;
     u8 microsecond[3];
     u8 sec;
     u8 min;
@@ -201,9 +202,8 @@ typedef struct {
     u32 largest_pdr_size;
     pldm_timestamp104_t update_time;
     u32 repo_signature;
-	pldm_pdr_record_t *first;
-	pldm_pdr_record_t *last;
-    pldm_pdr_record_t *is_deleted;              /* all delete pdr is in here */
+	pldm_pdr_record_t *head;
+    pldm_pdr_record_t *is_deleted_head;              /* all deleted pdr is in here */
 } pldm_pdr_t;
 
 typedef struct {
@@ -234,6 +234,15 @@ typedef struct {
 	u16 entity_instance_num;
 	u16 entity_container_id;
 } pldm_entity_t;
+
+typedef struct {
+    pldm_pdr_hdr_t hdr;
+    u16 pldm_terminus_handle;
+    u8 fru_record_terminus_identifier;
+    u16 entity_type;
+    u16 entity_instance_num;
+    u16 container_id;
+} pldm_fru_record_set_pdr_t;
 
 typedef union {
     struct {
@@ -468,11 +477,12 @@ void pdrs_pool_init(u32 *addr);
 void *pdr_malloc(int size);
 
 void pldm_pdr_init(pldm_pdr_t *repo);
-pldm_pdr_record_t *pldm_find_insert(pldm_pdr_t *repo, u16 record_handle);
-int pldm_pdr_add(pldm_pdr_t *repo, u8 *pdr_data, u32 pdr_size, u16 record_handle);
-int pldm_pdr_delete(pldm_pdr_t *repo, u16 record_handle);
-pldm_pdr_record_t *pldm_pdr_find(pldm_pdr_t *repo, u16 record_handle);
+pldm_pdr_record_t *pldm_find_insert(pldm_pdr_t *repo, u32 record_handle);
+int pldm_pdr_add(pldm_pdr_t *repo, u8 *pdr_data, u32 pdr_size, u32 record_handle);
+int pldm_pdr_delete(pldm_pdr_t *repo, u32 record_handle);
+pldm_pdr_record_t *pldm_pdr_find(pldm_pdr_t *repo, u32 record_handle);
 
+void pldm_fru_pdr_init(void);
 void pldm_redfish_pdr_init(void);
 void pldm_terminus_locator_pdr_init(void);
 void pldm_assoc_pdr_init(void);

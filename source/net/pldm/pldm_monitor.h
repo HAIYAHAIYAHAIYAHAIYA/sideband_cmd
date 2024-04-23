@@ -85,8 +85,7 @@
 /* Handle */
 
 #define PLDM_TERMINUS_LOCATOR_PDR_HANDLE              (0x10)
-
-#define PLDM_NIC_ASSOC_PDR_HANDLE                     (0)               /* special value: {0x0000_0000 = reserved } pldm monitor spec ?. E810 == 0 ? */
+#define PLDM_FRU_RECORD_SET_PDR_HANDLE                (2200)
 
 #define PLDM_BASE_NIC_HANDLE                          (1100)
 #define PLDM_BASE_CARD_COMPOSITE_STATE_SENSOR_HANDLE  (1101)

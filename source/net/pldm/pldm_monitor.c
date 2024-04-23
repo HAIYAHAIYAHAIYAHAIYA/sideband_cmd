@@ -818,7 +818,7 @@ static void pldm_monitor_get_pdr(protocol_msg_t *pkt, int *pkt_len)
     gs_pdr_previous_data_transfer_handle = rsp_dat->next_data_transfer_handle;
     *pkt_len += sizeof(pldm_get_pdr_rsp_dat_t) + rsp_dat->rsp_cnt;
 L_ERR:
-    LOG("transfer_flag : %d, cpl code : %#x, req_dat->record_handle : %d, rsp_cnt : %d", rsp_dat->transfer_flag, rsp_hdr->cpl_code, req_dat->record_handle, rsp_dat->rsp_cnt);
+    LOG("transfer_flag : %d, cpl code : %#x, req_dat->record_handle : %d, rsp_cnt : %d, req_cnt : %d", rsp_dat->transfer_flag, rsp_hdr->cpl_code, req_dat->record_handle, rsp_dat->rsp_cnt, req_dat->req_cnt);
     return;
 }
 
@@ -829,6 +829,7 @@ static void pldm_monitor_get_pdr_repo_signature(protocol_msg_t *pkt, int *pkt_le
     /* This is a 32-bit value and remains persistent unless a change is detected in any record of the PDR repository.
        This field should be computed once (during device boot) as low 32 bits of SHA256 of PDRs.(E810) */
     rsp_dat->pdr_repo_signature = g_pldm_monitor_info.pldm_repo.repo_signature;               /* 待定 */
+    LOG("repo_signature : %#x", g_pldm_monitor_info.pldm_repo.repo_signature);
 
     *pkt_len += sizeof(pldm_get_pdr_repo_signature_rsp_dat_t);
 }
@@ -880,7 +881,7 @@ u8 crc8_pldm(u8 *data, u16 len)
 void pldm_monitor_update_repo_signature(pldm_pdr_t *repo)
 {
     if (!repo) return;
-    pldm_pdr_record_t *pdr = repo->first;
+    pldm_pdr_record_t *pdr = repo->head;
     repo->repo_signature = 0;
     while (pdr) {
         repo->repo_signature = crc32_pldm(repo->repo_signature ^ 0xFFFFFFFFUL, pdr->data, pdr->size);
@@ -913,6 +914,7 @@ void pldm_monitor_init(void)
     pldm_numeric_sensor_pdr_init();
     pldm_state_sensor_pdr_init();
     pldm_redfish_pdr_init();
+    pldm_fru_pdr_init();
 
     // g_pldm_monitor_info.pldm_repo.update_time =
     pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));

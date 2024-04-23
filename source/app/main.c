@@ -5,6 +5,7 @@
 #include "pldm_monitor.h"
 #include "pldm_fw_update.h"
 #include "pldm_control.h"
+#include "pldm_fru_data.h"
 #include "protocol_device.h"
 #include "pldm.h"
 #include "mctp.h"
@@ -40,6 +41,7 @@ int pldm_type_get(void)
     LOG("Choice you PLDM protocol: ");
     LOG("\t0:MCTP_PLDM_CONTROL!");
     LOG("\t2:MCTP_PLDM_MONITOR!");
+    LOG("\t4:MCTP_PLDM_FRU_DATA!");
     LOG("\t5:MCTP_PLDM_UPDATE!");
     LOG("\t6:MCTP_PLDM_REDFISH!");
     LOG("\tff:quit!");
@@ -80,6 +82,7 @@ void cmd_init(void)
     mctp_ctrl_init();
     pldm_monitor_init();
     pldm_fwup_init();
+    pldm_fru_init();
 
     pldm_gen_init();
 }

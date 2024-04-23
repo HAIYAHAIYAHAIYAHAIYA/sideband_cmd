@@ -5,6 +5,7 @@
 #include "pldm_monitor.h"
 #include "pldm_redfish.h"
 #include "pldm_fw_update.h"
+#include "pldm_fru_data.h"
 
 #include "pkt_gen.h"
 
@@ -84,6 +85,11 @@ static void pldm_type_process(protocol_msg_t *pkt, int *pkt_len)
         case MCTP_PLDM_MONITOR:
             LOG("MCTP_PLDM_MONITOR");
             pldm_monitor_process(pkt, pkt_len, pldm_req->cmd_code);
+            break;
+
+        case MCTP_PLDM_FRU_DATA:
+            LOG("MCTP_PLDM_FRU_DATA");
+            pldm_fru_process(pkt, pkt_len, pldm_req->cmd_code);
             break;
 
         case MCTP_PLDM_UPDATE:
