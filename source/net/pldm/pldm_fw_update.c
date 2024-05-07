@@ -142,9 +142,8 @@ static void pldm_fwup_getfirmwareparameters(protocol_msg_t *pkt, int *pkt_len)
         rendered in hex with leading zeros as needed, terminated by a null byte. (E810)*/
     char *comp_ver_str[] = {"CCCCCCCC.SSSSSSSS", "CCCCCCCC.SSSSSSSS", "CCCCCCCC.SSSSSSSS"};
     char *comp_img_set_ver_str = "N:nnnnnnnnO:ooooooooT:tttttttttt";
-    /* BIT3 : Firmware Device can support a partial update.
-       BIT2 : Device host functionality will be reduced, perhaps becoming inaccessible, during Firmware Update. */
-    rsp_dat->cap_during_ud = CBIT(2) | CBIT(3);
+    /* BIT2 : Device host functionality will be reduced, perhaps becoming inaccessible, during Firmware Update. */
+    rsp_dat->cap_during_ud = CBIT(2);
     rsp_dat->comp_cnt = 3;                                                                   /* SLOT, CHIP, FACTORY */
     rsp_dat->actv_comp_img_set_ver_str_type_and_len.comp_img_set_ver_str_type = PLDM_UD_TYPE_ASCII;
     rsp_dat->actv_comp_img_set_ver_str_type_and_len.comp_img_set_ver_str_len = 32;
@@ -156,7 +155,7 @@ static void pldm_fwup_getfirmwareparameters(protocol_msg_t *pkt, int *pkt_len)
     cm_memcpy(rsp_dat->comp_img_set_ver_str.pending_comp_img_set_ver_str, comp_img_set_ver_str, 32);
 
     for (u8 i = 0; i < rsp_dat->comp_cnt; i++) {
-        rsp_dat->comp_param_table[i].comp_class_msg.comp_classification = PLDM_UD_FW_CLASSIFICATION;
+        rsp_dat->comp_param_table[i].comp_class_msg.comp_classification = PLDM_UD_SW_BUNDLE_CLASSIFICATION;
         rsp_dat->comp_param_table[i].comp_class_msg.comp_identifier = comp_identifier[i];
         rsp_dat->comp_param_table[i].comp_class_msg.comp_classification_idx = 0;                  /* not used */
 
@@ -171,9 +170,9 @@ static void pldm_fwup_getfirmwareparameters(protocol_msg_t *pkt, int *pkt_len)
         rsp_dat->comp_param_table[i].pending_comp_ver_msg.comp_ver_str_len = 18;
         cm_memset(rsp_dat->comp_param_table[i].pending_comp_release_date, 0, 8);
 
-        rsp_dat->comp_param_table[i].comp_actv_meth = CBIT(1) | CBIT(4);                           /* “DC power cycle” or “Self-Contained reset”. */
-        rsp_dat->comp_param_table[i].cap_during_ud = CBIT(0);                                      /* Bit 0 = 0 – Firmware Device executes an operation during the APPLY state,
-                                                                            which includes migrating the new component image to its final non-volatile storage destination. */
+        rsp_dat->comp_param_table[i].comp_actv_meth = CBIT(1);                           /* “DC power cycle” */
+        /* Bit 0 = 1: Firmware Device performs an ‘auto-apply’ during transfer phase and apply step will be completed immediately. */
+        rsp_dat->comp_param_table[i].cap_during_ud = CBIT(0);
         cm_memcpy(rsp_dat->comp_param_table[i].comp_ver_str.actv_comp_ver_str, comp_ver_str[i], 18);
         cm_memcpy(rsp_dat->comp_param_table[i].comp_ver_str.pending_comp_ver_str, comp_ver_str[i], 18);
     }
@@ -187,7 +186,7 @@ static void pldm_fwup_requestupdate(protocol_msg_t *pkt, int *pkt_len)
     mctp_hdr_t *req_mctp_hdr = (mctp_hdr_t *)(pkt->req_buf - sizeof(pldm_request_t) - sizeof(mctp_hdr_t));
     pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->rsp_buf - sizeof(pldm_response_t));
 
-    if (g_pldm_fwup_info.update_mode == UPDATING_MODE || g_sys.mode & UPGRADE_MODE) {
+    if (g_pldm_fwup_info.update_mode == UPDATING_MODE || CM_IS_AT_UPGRADE_MODE()) {
         rsp_hdr->cpl_code = PLDM_UD_ALREADY_IN_UPDATE_MODE;
         return;
     }
@@ -431,7 +430,7 @@ static void pldm_fwup_applycpl_send(void)
     g_pldm_need_rsp = 0;
     pldm_fwup_apply_cpl_req_dat_t req_dat = {0};
     req_dat.apply_result = 0;                                              /* Apply has completed without error. */
-    req_dat.comp_actv_meth_modification = CBIT(1) | CBIT(4);               /* DC power cycle or Self-Contained reset */
+    req_dat.comp_actv_meth_modification = CBIT(1);                         /* DC power cycle */
 
     pldm_msg_send((u8 *)&req_dat, sizeof(pldm_fwup_apply_cpl_req_dat_t), MCTP_PLDM_UPDATE, 0x18, g_pldm_fwup_info.hw_id, g_pldm_fwup_info.ua_eid);
 }
@@ -495,22 +494,24 @@ static void pldm_fwup_activatefw(protocol_msg_t *pkt, int *pkt_len)
     }
 
     /* 如果amber不支持自包含激活 */
-    // if (req_dat->self_contained_actv_req == true) { 
-    //     rsp_hdr->cpl_code = PLDM_UD_SELF_CONTAINED_ACTIVATION_NOT_PERMITTED;
-    //     g_pldm_fwup_info.cur_state = PLDM_UD_ACTIVATE;
-    //     pldm_fwup_activate_progress();
-    // }
+    if (req_dat->self_contained_actv_req == true) { 
+        rsp_hdr->cpl_code = PLDM_UD_SELF_CONTAINED_ACTIVATION_NOT_PERMITTED;
+        g_pldm_fwup_info.cur_state = PLDM_UD_ACTIVATE;
+        pldm_fwup_activate_progress();
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
+    }
 
     /* 如果amber支持自包含激活 */
-    if (req_dat->self_contained_actv_req == true) { 
-        /* 切换到active状态，自包含激活，激活成功后然后切换到IDLE状态，退出更新模式， */
-        gs_event_id = PLDM_UD_ENTER_ACTIVATE;
-    }
+    // if (req_dat->self_contained_actv_req == true) { 
+    //     /* 切换到active状态，自包含激活，激活成功后然后切换到IDLE状态，退出更新模式， */
+    //     gs_event_id = PLDM_UD_ENTER_ACTIVATE;
+    // }
 
     rsp_dat->estimated_time_for_self_contained_actv = 0;
     *pkt_len += sizeof(pldm_fwup_actv_fw_rsp_dat_t);
 
-    pldm_fw_upgrade_complete_callback *upgrade_complete_callback = upgrade_funcs[gs_component_index - 1].upgrade_complete_callback_func;
+    u8 comp_identifier = g_pldm_fwup_info.fw_new_ud_comp[gs_component_index - 1].comp_class_msg.comp_identifier;
+    pldm_fw_upgrade_complete_callback *upgrade_complete_callback = upgrade_funcs[comp_identifier].upgrade_complete_callback_func;
     if (upgrade_complete_callback)
         (*upgrade_complete_callback)(&gs_store_data, 0);
 L_ERR:
@@ -693,7 +694,7 @@ void pldm_fwup_init(void)
 
 static void pldm_fwup_timeout_process(void)
 {
-    if (!(g_sys.mode & UPGRADE_MODE) || g_pldm_fwup_info.cur_state == PLDM_UD_IDLE) return;
+    if (!CM_IS_AT_UPGRADE_MODE() || g_pldm_fwup_info.cur_state == PLDM_UD_IDLE) return;
     /* ms */
     u64 cur_time = CM_GET_CUR_TIMER_MS();
     /* Implement “6.3.2 Requirements for Requesters” as specified in DSP0240. */
@@ -718,7 +719,7 @@ static void pldm_fwup_timeout_process(void)
 
 static void pldm_fwup_upgrade_is_detected_process(void)
 {
-    if (!(g_sys.mode & UPGRADE_MODE)) return;
+    if (!CM_IS_AT_UPGRADE_MODE()) return;
     pldm_modify_state_datastruct(CONFIG_CHG, &controller_composite_state_sensors[2]);
     pldm_modify_state_datastruct(VER_CHG_DETECTED, &controller_composite_state_sensors[4]);
 }

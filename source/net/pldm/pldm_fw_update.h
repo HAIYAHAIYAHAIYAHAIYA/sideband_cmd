@@ -88,7 +88,8 @@ typedef enum {
 typedef enum {
     PLDM_UD_FW_CLASSIFICATION = 0x000A,
     PLDM_UD_BIOS_FCODE_CLASSIFICATION = 0x000B,
-    PLDM_UD_FW_BIOS_CLASSIFICATION = 0x0006
+    PLDM_UD_FW_BIOS_CLASSIFICATION = 0x0006,
+    PLDM_UD_SW_BUNDLE_CLASSIFICATION = 0x000D
 } pldm_fwup_comp_classification_t;
 
 typedef enum {

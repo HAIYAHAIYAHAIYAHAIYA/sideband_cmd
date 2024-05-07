@@ -52,18 +52,10 @@ static void pldm_fru_get_fru_record_table(protocol_msg_t *pkt, int *pkt_len)
             rsp_dat->transfer_flg = PLDM_FRU_TRANSFRT_FLG_END;
         }
         rsp_dat->next_data_transfer_hdl = 0;
-        /* refer to Platform Level Data Model (PLDM) for FRU Data Specification 
-           Table 7 – PLDM Representation of FRU Record Data */
-        if (cpy_len & 0x3) {
-            u8 pad_len = 4 - (cpy_len & 0x3);
-            cm_memset(&(rsp_dat->portion_of_data[cpy_len]), 0, pad_len);
-            *pkt_len += pad_len;
-        }
     } else {
         rsp_dat->transfer_flg = PLDM_FRU_TRANSFRT_FLG_MIDDLE;
         rsp_dat->next_data_transfer_hdl = data_transfer_hdl + cpy_len;
     }
-    // rsp_dat->next_data_transfer_hdl = data_transfer_hdl + cpy_len;
     cm_memcpy(rsp_dat->portion_of_data, &cpy_addr[data_transfer_hdl], cpy_len);
     gs_prev_transfer_hdl = rsp_dat->next_data_transfer_hdl;
     *pkt_len += sizeof(pldm_fru_get_fru_record_table_rsp_dat_t) + cpy_len;
@@ -89,6 +81,9 @@ void pldm_fru_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
     return cmd_proc(pkt, pkt_len);
 }
 
+/* refer to \\nfs\public\firmware\common\pldm\vendors\MCTPFRU-AN1281-100.pdf */
+/* refer to \\nfs\public\firmware\common\pldm\vendors\MCTPFRU-AN1408-100.pdf */
+/* to be determind */
 u8 *pldm_fru_fill_general_part(u8 *buf)
 {
     char serial_num[2] = {MAX_LAN_NUM, 0x00};

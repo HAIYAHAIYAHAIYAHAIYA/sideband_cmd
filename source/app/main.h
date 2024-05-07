@@ -36,6 +36,8 @@ do {\
     _ms;\
 })
 
+#define CM_IS_AT_UPGRADE_MODE()         (0)
+
 extern FILE *g_fp;
 
 #if 1

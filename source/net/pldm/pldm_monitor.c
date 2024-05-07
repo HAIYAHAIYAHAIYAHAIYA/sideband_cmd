@@ -884,7 +884,8 @@ void pldm_monitor_update_repo_signature(pldm_pdr_t *repo)
     pldm_pdr_record_t *pdr = repo->head;
     repo->repo_signature = 0;
     while (pdr) {
-        repo->repo_signature = crc32_pldm(repo->repo_signature ^ 0xFFFFFFFFUL, pdr->data, pdr->size);
+        if (pdr->data)
+            repo->repo_signature = crc32_pldm(repo->repo_signature ^ 0xFFFFFFFFUL, pdr->data, pdr->size);
         pdr = pdr->next;
     }
 }

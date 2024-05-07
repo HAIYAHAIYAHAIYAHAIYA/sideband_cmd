@@ -6,6 +6,7 @@
 
 #define PLDM_FRU_DATA_CMD               (0x02 + 1)
 #define PLDM_FRU_TABLE_BUF_LEN          (1024)              /* 4 LAN for 892 bytes, 2 LAN for 522 bytes */
+/* Attention ! DSP0257 pldm fru data spec do not have transfer buffersize. pldm_fru_get_fru_record_table rsp cmd's behavior may be err.  */
 #define PLDM_FRU_TRANSFER_BUFFERSIZE    PLDM_TERMINUS_DEFAULT_BUFFERSIZE
 
 typedef enum {
