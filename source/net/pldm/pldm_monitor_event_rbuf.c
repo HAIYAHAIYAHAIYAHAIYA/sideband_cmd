@@ -30,6 +30,7 @@ void *pldm_event_rbuf_init(void)
 
 int pldm_event_rbuf_read_size(void *p)
 {
+    if (!p) return -1;
     pldm_event_buf_t *pt = (pldm_event_buf_t *)p;
     int rbuf_sz = (pt->wt >= pt->rd) ? (pt->wt - pt->rd) : (pt->wt + PLDM_TERMINUS_MAX_BUFFERSIZE - pt->rd);
     return rbuf_sz;
@@ -37,12 +38,14 @@ int pldm_event_rbuf_read_size(void *p)
 
 int pldm_event_rbuf_is_empty(void *p)
 {
+    if (!p) return -1;
     pldm_event_buf_t *pt = (pldm_event_buf_t *)p;
     return pt->rd == pt->wt;
 }
 
 int pldm_event_rbuf_try_read(void *p, void *dat, int len, int offset)
 {
+    if (!p || !dat) return -1;
     //CHECK(p != NULL, TRUE, return STS_ERR);
     pldm_event_buf_t *pt = (pldm_event_buf_t *)p;
     u32 size = PLDM_TERMINUS_MAX_BUFFERSIZE;
@@ -64,6 +67,7 @@ int pldm_event_rbuf_try_read(void *p, void *dat, int len, int offset)
 
 int pldm_event_rbuf_read_done(void *p)
 {
+    if (!p) return -1;
     //CHECK(p != NULL, TRUE, return STS_ERR);
     pldm_event_buf_t *pt = (pldm_event_buf_t *)p;
     pt->rd = pt->try_rd;
@@ -73,6 +77,7 @@ int pldm_event_rbuf_read_done(void *p)
 
 int pldm_event_rbuf_write(void *p, void *dat, int len)
 {
+    if (!p || !dat) return -1;
     //CHECK(p != NULL, TRUE, return STS_ERR);
     pldm_event_buf_t *pt = (pldm_event_buf_t *)p;
     u32 size = PLDM_TERMINUS_MAX_BUFFERSIZE;
@@ -104,7 +109,7 @@ int pldm_event_rbuf_write(void *p, void *dat, int len)
 
 void pldm_sensor_event_generate(void *p, u8 sensor_event_class, u8 event_msg_en, void *data_struct)
 {
-    if (!p || g_pldm_monitor_info.terminus_mode == PLDM_DISABLE) {
+    if (!p || g_pldm_monitor_info.terminus_mode == PLDM_DISABLE || !data_struct) {
         goto L_RET;
     }
 
@@ -207,7 +212,7 @@ void pldm_redfish_task_execute_event_generate(void *p, pldm_redfish_task_execute
     pldm_event_rbuf_write(p, task_execute_event, sizeof(pldm_event_data_t) + task_execute_event->event_data_size);
 }
 
-void pldm_redfish_msg_event_generate(void *p, u8 link_state)
+void pldm_redfish_msg_event_generate(void *p, u32 resource_id, u8 link_state)
 {
     if (!p || g_pldm_monitor_info.terminus_mode == PLDM_DISABLE) {
         return;
@@ -218,7 +223,7 @@ void pldm_redfish_msg_event_generate(void *p, u8 link_state)
     u8 ret = pldm_redfish_get_dict_data(PLDM_BASE_EVENT_DICT_RESOURCE_ID, SCHEMACLASS_EVENT, event_dict, PLDM_REDFISH_EVENT_DICT_LEN);
     if (ret == false) return;
 
-    u8 *annc_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
+    u8 *anno_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
     pldm_event_data_t *msg_event = (pldm_event_data_t *)event_buf;
     pldm_redfish_msg_event_data_format_t *msg_event_data = (pldm_redfish_msg_event_data_format_t *)(msg_event->data);
     pldm_redfish_dictionary_format_t *event_dict_ptr = (pldm_redfish_dictionary_format_t *)&event_dict[DICT_FMT_HDR_LEN];
@@ -232,9 +237,11 @@ void pldm_redfish_msg_event_generate(void *p, u8 link_state)
     bejencoding_t *ptr = (bejencoding_t *)&(msg_event_data->id_and_severity[1]);
 
     ptr->ver = event_dict_ptr->schema_version;
-    ptr->schema_class = SCHEMACLASS_MAJOR;
-
-    pldm_cjson_t *root = pldm_cjson_create_event_schema(PLDM_BASE_EVENT_DICT_RESOURCE_ID, (u8 *)event_dict_ptr, annc_dict, link_state);
+    ptr->schema_class = SCHEMACLASS_EVENT;
+    // PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID + port
+    pldm_cjson_t *root = pldm_cjson_create_event_schema(resource_id, link_state);
+    if (!root) return;
+    pldm_cjson_cal_sf_to_root(root, anno_dict, (u8 *)event_dict_ptr);
     pldm_cjson_cal_len_to_root(root, OTHER_TYPE);
     u8 *end_ptr = pldm_bej_encode(root, ((u8 *)ptr + sizeof(bejencoding_t)));
     msg_event_data->event_data_len = end_ptr - (u8 *)ptr;

@@ -45,6 +45,8 @@ typedef enum {
 
 void pldm_bej_init(void);
 u8 *pldm_bej_encode(pldm_cjson_t *root, u8 *bej_buf);
-pldm_cjson_t *pldm_bej_decode(u8 *buf, u16 buf_len, u8 *anno_dict, u8 *dict, pldm_cjson_t *root);
+pldm_cjson_t *pldm_bej_decode(u8 *buf, u16 buf_len, u8 *anno_dict, u8 *dict, pldm_cjson_t *root, u8 is_full_schema);
+pldm_cjson_t *pldm_bej_get_match_node(void);
+void pldm_bej_fill_name(pldm_cjson_t *schema_root, pldm_cjson_t *bej_root);
 
 #endif /* __PLDM_BEJ_RESOLVE_H__ */

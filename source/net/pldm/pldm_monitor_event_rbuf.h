@@ -93,6 +93,6 @@ void pldm_pdr_chg_event_generate(void *p, u8 event_data_format, u8 event_data_op
 void pldm_sensor_event_generate(void *p, u8 sensor_event_class, u8 event_msg_en, void *data_struct);
 
 void pldm_redfish_task_execute_event_generate(void *p, pldm_redfish_task_executed_event_data_format_t *op_indentify);
-void pldm_redfish_msg_event_generate(void *p, u8 link_state);
+void pldm_redfish_msg_event_generate(void *p, u32 resource_id, u8 link_state);
 
 #endif /* __PLDM_MONITOR_EVENT_RBUF_H__ */

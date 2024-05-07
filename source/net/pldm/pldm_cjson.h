@@ -4,7 +4,7 @@
 #include "main.h"
 #include "pldm_redfish.h"
 
-#define PLDM_CJSON_POLL_SIZE                    (9 * 512)
+#define PLDM_CJSON_POLL_SIZE                    (6000)              /* max 5798 */
 
 /* Cable inserted into port. */
 #define REGISTRY_CABLEINSERTED                  CBIT(0)             /* Currently not supported */
@@ -45,24 +45,27 @@ typedef struct pldm_cjson {
 
 #pragma pack()
 
-typedef pldm_cjson_t *(*schema_create)(u8 *dict, u8 *anno_dict);
+typedef pldm_cjson_t *(*schema_create)(u32 resource_id);
 
 void pldm_cjson_pool_init(void);
 void pldm_cjson_pool_reinit(void);
 pldm_cjson_t *pldm_cjson_create_obj(void);
 void pldm_cjson_delete_node(pldm_cjson_t *node);
 
-pldm_cjson_t *pldm_cjson_read(pldm_cjson_t *root, u16 collection_skip, u16 collection_top);
-pldm_cjson_t *pldm_cjson_update(pldm_cjson_t *root, pldm_cjson_t *update_node);
-pldm_cjson_t *pldm_cjson_replace(pldm_cjson_t *root, pldm_cjson_t *replace_node);
-pldm_cjson_t *pldm_cjson_action(pldm_cjson_t *root);
-pldm_cjson_t *pldm_cjson_head(pldm_cjson_t *root);
+int pldm_cjson_read(pldm_cjson_t *root, u16 collection_skip, u16 collection_top);
+int pldm_cjson_update(pldm_cjson_t *root, pldm_cjson_t *match_node, pldm_cjson_t *update_node);
+int pldm_cjson_replace(pldm_cjson_t *root, pldm_cjson_t *replace_node);
+int pldm_cjson_action(pldm_cjson_t *root);
+int pldm_cjson_head(pldm_cjson_t *root);
 u16 pldm_cjson_cal_len_to_root(pldm_cjson_t *root, u8 op_type);
 void pldm_cjson_printf_root(pldm_cjson_t *root);
 
 pldm_cjson_t *pldm_cjson_add_item_to_obj(pldm_cjson_t *obj, pldm_bej_sflv_dat_t *sflv, char *name, char *val, u8 val_len);
 void pldm_cjson_add_enum_to_obj(pldm_cjson_t *obj, u8 *dictionary, pldm_bej_sflv_dat_t *sflv, char *enum_name, char *enum_val);
 
-pldm_cjson_t *pldm_cjson_create_event_schema(u32 resource_id, u8 *dict, u8 *anno_dict, u8 link_state);
-pldm_cjson_t *pldm_cjson_create_networkadapter_v1_5_0_schema_update(u8 *dict, u8 *anno_dict);
+pldm_cjson_t *pldm_cjson_create_event_schema(u32 resource_id, u8 link_state);
+void pldm_cjson_cal_sf_to_root(pldm_cjson_t *root, u8 *anno_dict, u8 *dict);
+u8 pldm_cjson_get_etag(u8 resource_identify, u32 resource_id, varstring *etag);
+char *pldm_cjson_update_etag(pldm_cjson_t *root);
+
 #endif /* __PLDM_CJSON_H__ */

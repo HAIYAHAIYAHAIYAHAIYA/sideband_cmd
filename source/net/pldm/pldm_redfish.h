@@ -7,6 +7,7 @@
 #define MINIMAL_MCTP_PACKET                                 (64)
 #define PLDM_REDFISH_DEV_MAXIMUM_XFER_CHUNKSIZE_BYTES       (2048)
 #define PLDM_REDFISH_DICT_NUM                               (14)
+#define PLDM_REDFISH_RESOURCE_NUM                           (4 * MAX_LAN_NUM + 7)   /* refer to pldm redfish resource id cnt */
 #define PLDM_MULTI_RECV_FIELD_LEN                           (sizeof(pldm_redfish_rde_multipart_receive_rsp_dat_t) + sizeof(pldm_response_t))
 #define PLDM_MULTI_SEND_FIELD_LEN                           (sizeof(pldm_redfish_rde_multipart_send_req_dat_t) + sizeof(pldm_response_t))
 #define PLDM_OP_INIT_FIELD_LEN                              (sizeof(pldm_redfish_rde_operation_init_req_dat_t) + sizeof(pldm_response_t))
@@ -114,7 +115,7 @@ typedef enum {
     HEAD = 0,
     READ,
     CREATE,
-    DELETE,
+    DELETE_OP,
     UPDATE,
     REPLACE,
     ACTION,
@@ -156,6 +157,7 @@ typedef enum {
     PLDM_ERROR_NOT_READY = 0x04,
 
     PLDM_ERROR_BAD_CHECKSUM = 0x80,
+    PLDM_ERROR_CANNOT_CREATE_OPERATION = 0x81,
     PLDM_ERROR_NOT_ALLOWED = 0X82,
     PLDM_ERROR_OPERATION_ABANDONED = 0x84,
     PLDM_ERROR_OPERATION_UNKILLABLE = 0x85,
@@ -247,7 +249,7 @@ typedef struct {
 } pldm_redfish_get_resource_etag_req_dat_t;
 
 typedef struct {
-    u32 eTag;
+    varstring etag;
 } pldm_redfish_get_resource_etag_rsp_dat_t;
 
 typedef struct {
@@ -471,8 +473,10 @@ typedef struct {
 
 typedef struct {
     u8 is_bej;
+    u8 is_etag;
     u16 len;
-    u8 data[260];
+    u8 etag[8];
+    u8 data[520];           /* max 518 bytes */
 } pldm_redfish_bej_t;
 
 typedef struct {
@@ -526,6 +530,7 @@ void pldm_redfish_op_triggered(void);
 void pldm_redfish_op_task(void *param);
 void pldm_redfish_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code);
 u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dict, u16 len);
+u32 pldm_redfish_resource_id_to_base(u32 resource_id);
 void pldm_redfish_op(void);
 
 #endif /* __PLDM_REDFISH_H__ */

@@ -10,7 +10,7 @@ pldm_redfish_base_info_t g_pldm_redfish_base_info;
 static op_info_t gs_op_info = {.dev_status = OPERATION_INACTIVE};
 static op_data_buf_t gs_op_buf;
 static u8 etag[ALL_SCHEMA][256];
-pldm_redfish_bej_t g_resourse_bej[11];
+pldm_redfish_bej_t g_resourse_bej[PLDM_REDFISH_RESOURCE_NUM];
 u8 g_dict_info[PLDM_REDFISH_DICT_INFO_LEN];
 u8 g_anno_dict[PLDM_REDFISH_ANNO_DICT_LEN];
 u8 g_needed_dict[PLDM_REDFISH_PORT_DICT_LEN];
@@ -18,12 +18,12 @@ u8 g_needed_dict[PLDM_REDFISH_PORT_DICT_LEN];
 u16 pldm_redfish_get_dict_len(u32 resource_id);
 
 extern pldm_monitor_base_info_t g_pldm_monitor_info;
-extern schema_create g_schemas[];
+extern schema_create g_schemas[11];
 
 extern void pldm_unsupport_cmd(protocol_msg_t *pkt, int *pkt_len);
 extern u32 crc32_pldm(u32 init_crc, u8 *data, u32 len);
 
-pldm_redfish_schema_info_t schema_info[ALL_SCHEMA_IDENTIFY] = {
+pldm_redfish_schema_info_t schema_info[ALL_SCHEMA] = {
     [EVENT]                             = {SCHEMACLASS_EVENT,                               BIT(READ),                                          {"Event.json"}},
     [REDFISH_PAYLOAD_ANNOTATIONS]       = {SCHEMACLASS_ANNOTATION,                          BIT(READ),                                          {"redfish-payload-annotations.v1_0_2.json"}},
     [REDFISH_ERROR]                     = {SCHEMACLASS_ERROR,                               BIT(READ),                                          {"v1/redfish-error.v1_0_0.json"}},
@@ -54,7 +54,7 @@ static void pldm_redfish_clear_op_param(void)
     gs_op_buf.op_locator[0] = 0;   // the lengthbyte of length field
 }
 
-static u8 resource_id_to_resource_identity(u32 resource_id)
+u8 resource_id_to_resource_identity(u32 resource_id)
 {
     u8 resource_identity = 0xFF;
     if (resource_id == PLDM_BASE_REGISTER_DICT_RESOURCE_ID) {
@@ -249,11 +249,24 @@ static void pldm_redfish_get_resource_etag(protocol_msg_t *pkt, int *pkt_len)
 
     u8 resource_identify = resource_id_to_resource_identity(req_dat->resource_id);
     if (resource_identify == 0xFF) {
-        rsp_hdr->cpl_code = PLDM_ERROR_NO_SUCH_RESOURCE;
-        return;
+        goto L_ERR;
     }
-    (void)rsp_dat->eTag;
-    *pkt_len += sizeof(pldm_redfish_get_resource_etag_rsp_dat_t);
+
+    u8 ret = pldm_cjson_get_etag(resource_identify - 4, req_dat->resource_id, &(rsp_dat->etag));
+    if (ret == false) goto L_ERR;
+
+    *pkt_len += sizeof(pldm_redfish_get_resource_etag_rsp_dat_t) + 8;
+    LOG("Etag : ");
+    for (u8 i = 0; i < rsp_dat->etag.len; i++) {
+        printf("%c", rsp_dat->etag.val[i]);
+    }
+    LOG("\nreq_dat->resource_id : %lld, etag.len : %d", req_dat->resource_id, rsp_dat->etag.len);
+    return;
+
+L_ERR:
+    rsp_hdr->cpl_code = PLDM_ERROR_NO_SUCH_RESOURCE;
+    LOG("resource id : %lld", req_dat->resource_id);
+    return;
 }
 
 static void pldm_redfish_get_oem_count(protocol_msg_t *pkt, int *pkt_len)
@@ -351,6 +364,11 @@ static void pldm_redfish_rde_operation_init(protocol_msg_t *pkt, int *pkt_len)
     pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->rsp_buf - sizeof(pldm_response_t));
 
     u8 resource_identify = 0xFF;
+    if (gs_op_info.dev_status != OPERATION_INACTIVE) {
+        rsp_hdr->cpl_code = PLDM_ERROR_CANNOT_CREATE_OPERATION;         /* to indicate that no new Task slots are available */
+        goto L_ERR;
+    }
+
     if (g_pldm_monitor_info.repo_state == PLDM_REPO_UPDATE_IN_PROGRESS) {
         rsp_hdr->cpl_code = PLDM_ERROR_NOT_READY;   // Firmware is in the middle of an operation preventing the access.
         goto L_ERR;
@@ -426,7 +444,8 @@ L_ERR:
     rsp_dat->rsp_payload_len = 0;                                               /* no rsp_data, the operation no finished */
     rsp_dat->op_status = gs_op_info.dev_status;
     rsp_dat->etag.format = UTF_8;                                               /* if operation has failed or not yet finished, the ETag field is skipped */
-    rsp_dat->etag.len = 0;
+    rsp_dat->etag.len = 1;
+    rsp_dat->etag.val[0] = '\0';
 
     *pkt_len += sizeof(pldm_redfish_rde_operation_init_rsp_dat_t);
     LOG("cpl_code : %#x, resource_identify : %d, resource_id : %lld, op_id : %d", rsp_hdr->cpl_code, resource_identify, req_dat->op_identify.resource_id, req_dat->op_identify.op_id);
@@ -462,25 +481,33 @@ static void pldm_redfish_supply_custom_request_parameters(protocol_msg_t *pkt, i
         goto L_ERR;
     }
 
-    u32 *ptr = (u32 *)&req_dat->etag;
+    u8 *ptr = (u8 *)&req_dat->etag;
     for (int i = 0; i < req_dat->etag_cnt; i++) {
         varstring *etag_val= (varstring *)ptr;
-        cm_memcpy(etag[i], (void *)&(etag_val->len), etag_val->len + 1);
-        ptr += (2 + etag_val->len);
+        cm_memcpy(etag[i], (void *)&(etag_val->len), etag_val->len + 1);    /* include len and data */
+        ptr += (sizeof(varstring) + etag_val->len);
+    }
+
+    u8 etag_ptr[11];
+    u8 *etag_string = &etag_ptr[sizeof(varstring)]; // the calculated ETag
+    u8 etag_len = etag_ptr[1];
+
+    u8 ret = pldm_cjson_get_etag(resource_identify - 4, req_dat->op_identify.resource_id, (varstring *)etag_ptr);
+    if (ret == false) {
+        rsp_hdr->cpl_code = PLDM_ERROR_NO_SUCH_RESOURCE;    // resource ID is not advertised by the device
+        goto L_ERR;
     }
 
     if (req_dat->etag_op == ETAG_IF_MATCH) {
         // do the action only if the calculated ETag for the resource == ETag [0]
-        u8 *etag_string = "etag"; // the calculated ETag
         int state = cm_memcmp(etag_string, &etag[0][1], etag[0][0]);
         if (state) {
+            LOG("err etag : %s, %s", etag_string, &etag[0][1]);
             rsp_hdr->cpl_code = PLDM_ERROR_ETAG_MATCH;
             goto L_ERR;
         }
     } else if (req_dat->etag_op == ETAG_IF_NONE_MATCH) {
         // do the action only if the calculated ETag for the resource != all of {ETag [0] … ETag[ETagCount-1]. 
-        u8 *etag_string = "etag";
-        u32 etag_len = cm_strlen(etag_string);
         int state = 0;
         for (int i = 0; i < req_dat->etag_cnt; i++) {
             state = etag_len - etag[i][0];
@@ -523,7 +550,8 @@ L_ERR:
     rsp_dat->rsp_payload_len = 0;                                               /* no rsp_data, the operation no finished */
     rsp_dat->op_status = gs_op_info.dev_status;
     rsp_dat->etag.format = UTF_8;                                               /* if operation has failed or not yet finished, the ETag field is skipped */
-    rsp_dat->etag.len = 0;
+    rsp_dat->etag.len = 1;
+    rsp_dat->etag.val[0] = '\0';
 
     rsp_dat->permission_flg = CBIT(0) | CBIT(5);
     if (resource_identify != 0xFF) {
@@ -533,7 +561,7 @@ L_ERR:
     }
 
     *pkt_len += sizeof(pldm_redfish_supply_custom_request_parameters_rsp_dat_t);
-    LOG("%s, cpl_code : %#x", __FUNCTION__, rsp_hdr->cpl_code);
+    LOG("%s, cpl_code : %#x, resource_id : %lld", __FUNCTION__, rsp_hdr->cpl_code, req_dat->op_identify.resource_id);
 }
 
 /* This command is currently not supported, as the NIC does not provide any Custom Response parameters. */
@@ -640,11 +668,19 @@ static void pldm_redfish_rde_operation_status(protocol_msg_t *pkt, int *pkt_len)
         }
     }
 
-    if (rsp_dat->op_status == OPERATION_COMPLETED) {
+    /* The ETag may be skipped (an empty string returned in this field) for any of the following actions: 
+       Action, Delete, Replace, and Update. */
+    if (rsp_dat->op_status == OPERATION_COMPLETED && gs_op_info.op_type < DELETE_OP) {
         // 补充rsp_dat->etag
+        u8 ret = pldm_cjson_get_etag(resource_identify - 4, req_dat->op_identify.resource_id, &(rsp_dat->etag));
+        if (ret == false) {
+            rsp_hdr->cpl_code = PLDM_ERROR_NO_SUCH_RESOURCE;    // resource ID is not advertised by the device
+            goto L_ERR;
+        }
     } else{
         rsp_dat->etag.format = UTF_8;
-        rsp_dat->etag.len = 0;
+        rsp_dat->etag.len = 1;
+        rsp_dat->etag.val[0] = '\0';
     }
 
     *pkt_len += (sizeof(pldm_redfish_rde_operation_status_rsp_dat_t) + rsp_dat->rsp_payload_len + rsp_dat->etag.len);
@@ -658,7 +694,8 @@ L_ERR:
     rsp_dat->result_transfer_handle = 0;
     rsp_dat->rsp_payload_len = 0;
     rsp_dat->etag.format = UTF_8;
-    rsp_dat->etag.len = 0;
+    rsp_dat->etag.len = 1;
+    rsp_dat->etag.val[0] = '\0';
 
     rsp_dat->permission_flg = CBIT(0) | CBIT(5);
     if (rsp_hdr->cpl_code == PLDM_ERROR_NO_SUCH_RESOURCE) {
@@ -744,7 +781,13 @@ static void pldm_redfish_rde_multipart_send(protocol_msg_t *pkt, int *pkt_len)
     if ((req_dat->transfer_flg == PLDM_TRANSFER_FLG_START_AND_END) || (req_dat->transfer_flg == PLDM_TRANSFER_FLG_END)) {
         gs_op_buf.op_data.len -= sizeof(u32);
         u32 crc = crc32_pldm(0xFFFFFFFFUL, gs_op_buf.op_data.data, (gs_op_buf.op_data.len));
-        LOG("crc result : %s", crc == *(u32 *)(&gs_op_buf.op_data.data[gs_op_buf.op_data.len]) ? "true" : "false");
+        LOG("crc result : %s, len : %d", crc == *(u32 *)(&gs_op_buf.op_data.data[gs_op_buf.op_data.len]) ? "true" : "false", gs_op_buf.op_data.len);
+        // for (u16 i = 0; i < (gs_op_buf.op_data.len - 7); i++) {
+        //     printf("0x%02x, ", gs_op_buf.op_data.data[7 + i]);
+        //     if (!((i + 1) % 8)) {
+        //         printf("\n");
+        //     }
+        // }
         if (crc != *(u32 *)(&gs_op_buf.op_data.data[gs_op_buf.op_data.len])) {
             rsp_hdr->cpl_code = PLDM_ERROR_BAD_CHECKSUM;
             rsp_dat->transfer_op = XFER_FIRST_PART;
@@ -837,7 +880,7 @@ L_ERR:
     return;
 }
 
-static pldm_cmd_func pldm_cmd_table[PLDM_REDFISH_CMD] =
+static pldm_cmd_func pldm_redfish_cmd_table[PLDM_REDFISH_CMD] =
 {
     pldm_unsupport_cmd,                                     /* 0x00 */
     pldm_redfish_negotiate_redfish_parameters,              /* 0x01 */
@@ -872,7 +915,7 @@ void pldm_redfish_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
     pldm_cmd_func cmd_proc = NULL;
 
     if (cmd_code < PLDM_REDFISH_CMD) {
-        cmd_proc = pldm_cmd_table[cmd_code];
+        cmd_proc = pldm_redfish_cmd_table[cmd_code];
     } else if (cmd_code == 0x30) {
         cmd_proc = pldm_redfish_rde_multipart_send;
     } else if (cmd_code == 0x31) {
@@ -900,7 +943,7 @@ static void CM_FLASH_READ(u32 offset, u32 *buf, u32 size)
     fclose(fp);
 }
 
-static u32 pldm_redfish_resource_id_to_base(u32 resource_id)
+u32 pldm_redfish_resource_id_to_base(u32 resource_id)
 {
     if (resource_id >= PLDM_BASE_PORT_RESOURCE_ID && resource_id <= PLDM_MAX_ETH_INTERFACE_RESOURCE_ID_1) {
         if (((resource_id <= PLDM_MAX_PORT_RESOURCE_ID) && (resource_id >= PLDM_BASE_PORT_RESOURCE_ID)) || \
@@ -922,11 +965,12 @@ static u32 pldm_redfish_resource_id_to_base(u32 resource_id)
 // /* max dict is 8k, len is dw align */
 u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dict, u16 len)
 {
+    if (!dict) return false;
     u32 dict_addr = 0;
     resource_id = pldm_redfish_resource_id_to_base(resource_id);
     pldm_redfish_dict_hdr_t *dict_info  = (pldm_redfish_dict_hdr_t *)g_dict_info;
     for (u8 i = 0; i < dict_info->num_of_dict; i++) {
-        if (resource_id == dict_info->dict_info[i].resource_id && (BIT(requested_schemaclass) & dict_info->dict_info[i].schema_class)) {
+        if ((resource_id == dict_info->dict_info[i].resource_id) && (BIT(requested_schemaclass) & dict_info->dict_info[i].schema_class)) {
             dict_addr = dict_info->dict_info[i].offset;
             break;
         }
@@ -1019,62 +1063,109 @@ void pldm_redfish_op(void)
 
         pldm_cjson_t *bej_root = NULL;
         pldm_cjson_t *root = NULL;
+        pldm_cjson_t *match_node = NULL;
 
-        u8 *annc_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
+        u8 *anno_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
         u8 *dict = &g_needed_dict[DICT_FMT_HDR_LEN];
+        u32 resource_id = g_pldm_redfish_base_info.prev_op_identify.resource_id;
+        u8 offset = resource_id - pldm_redfish_resource_id_to_base(resource_id);
+        int err_code = 0;
 
-        u8 resourse_indenty = resource_id_to_resource_identity(g_pldm_redfish_base_info.prev_op_identify.resource_id);
-        if (resourse_indenty > ETH_INTERFACE_COLLECTION) goto L_EXIT;
+        u8 resourse_indenty = resource_id_to_resource_identity(resource_id);
+        if (resourse_indenty > ETH_INTERFACE_COLLECTION) {
+            err_code = -1;
+            goto L_EXIT;
+        }
 
         resourse_indenty -= NETWORK_ADAPTER;
 
-        u8 ret = pldm_redfish_get_dict_data(g_pldm_redfish_base_info.prev_op_identify.resource_id, SCHEMACLASS_MAJOR,\
-        g_needed_dict, pldm_redfish_get_dict_len(g_pldm_redfish_base_info.prev_op_identify.resource_id));
-        if (ret == false) goto L_EXIT;
-
-        if (g_resourse_bej[resourse_indenty].is_bej)
-            root = pldm_bej_decode(g_resourse_bej[resourse_indenty].data, g_resourse_bej[resourse_indenty].len, annc_dict, dict, root);
-        else root = g_schemas[resourse_indenty](dict, annc_dict);
-
-        if (!root) goto L_EXIT;
-
-        if (gs_op_buf.op_data.len && gs_op_info.op_type != READ && gs_op_info.op_type != HEAD) {
-            bej_root = pldm_bej_decode(&(gs_op_buf.op_data.data[sizeof(bejencoding_t)]), gs_op_buf.op_data.len - sizeof(bejencoding_t), annc_dict, dict, bej_root);
-            if (!bej_root) goto L_EXIT;
+        u8 ret = pldm_redfish_get_dict_data(resource_id, SCHEMACLASS_MAJOR,\
+        g_needed_dict, pldm_redfish_get_dict_len(resource_id));
+        if (ret == false) {
+            err_code = -2;
+            goto L_EXIT;
         }
 
+        if (g_resourse_bej[resourse_indenty + offset].is_bej) {
+            root = pldm_bej_decode(g_resourse_bej[resourse_indenty + offset].data, g_resourse_bej[resourse_indenty + offset].len, anno_dict, dict, root, 1);
+        } else {
+            root = g_schemas[resourse_indenty](resource_id);
+            if (root) {
+                pldm_cjson_cal_sf_to_root(root, anno_dict, dict);
+                pldm_cjson_cal_len_to_root(root, OTHER_TYPE);
+                if (g_resourse_bej[resourse_indenty + offset].is_etag != 1)
+                    pldm_cjson_update_etag(root);
+                // pldm_cjson_printf_root(root);
+            }
+        }
+
+        if (!root) {
+            err_code = -3;
+            goto L_EXIT;
+        }
+
+        if (gs_op_buf.op_data.len && gs_op_info.op_type != READ && gs_op_info.op_type != HEAD && gs_op_info.op_type != ACTION) {
+            bej_root = pldm_bej_decode(&(gs_op_buf.op_data.data[sizeof(bejencoding_t)]), gs_op_buf.op_data.len - sizeof(bejencoding_t), anno_dict, dict, bej_root, 0);
+            if (!bej_root) {
+                err_code = -4;
+                goto L_EXIT;
+            }
+            // pldm_cjson_cal_sf_to_root(bej_root, anno_dict, dict);
+            // pldm_cjson_printf_root(bej_root);
+            pldm_bej_fill_name(root, bej_root);
+            match_node = pldm_bej_get_match_node();
+            if (!match_node) {
+                err_code = -5;
+                goto L_EXIT;
+            }
+        }
+
+        int state = -1;
         switch (gs_op_info.op_type) {
             case READ:
-                root = pldm_cjson_read(root, gs_op_info.collection_skip, gs_op_info.collection_top);
+                state = pldm_cjson_read(root, gs_op_info.collection_skip, gs_op_info.collection_top);
                 break;
             case UPDATE:
-                root = pldm_cjson_update(root, bej_root);
+                state = pldm_cjson_update(root, match_node, bej_root);
                 break;
             case REPLACE:
-                root = pldm_cjson_replace(root, bej_root);
+                state = pldm_cjson_replace(root, bej_root);
                 break;
             case ACTION:
-                root = pldm_cjson_action(root);
+                state = pldm_cjson_action(root);
                 break;
             case HEAD:
-                root = pldm_cjson_head(root);                   /*  not return message body information. */
+                state = pldm_cjson_head(root);                   /*  not return message body information. */
                 break;
             default :
                 LOG("err op type : %d", gs_op_info.op_type);
+                err_code = -6;
                 goto L_EXIT;
-                break;
+        }
+        if (state != 0) {
+            err_code = -7;
+            goto L_EXIT;
         }
         bej_root = NULL;
+        if (gs_op_info.op_type == UPDATE || gs_op_info.op_type == REPLACE) {
+            char *val = pldm_cjson_update_etag(root);
+            if (val) {
+                g_resourse_bej[resourse_indenty + offset].is_etag = 1;
+                cm_memcpy(g_resourse_bej[resourse_indenty + offset].etag, val, 8);
+            } else {
+                err_code = -8;
+                goto L_EXIT;
+            }
+        }
         pldm_cjson_cal_len_to_root(root, gs_op_info.op_type);
-        // pldm_cjson_printf_root(root);
+        pldm_cjson_printf_root(root);
         LOG("op_type : %d", gs_op_info.op_type);
         if (gs_op_info.op_type != ACTION) {
             // cm_memcpy(gs_op_buf.op_result.data, gs_op_buf.op_data.data, sizeof(bejencoding_t));
             bejencoding_t *ptr = (bejencoding_t *)gs_op_buf.op_result.data;
-            pldm_redfish_dictionary_format_t *dict_ptr = (pldm_redfish_dictionary_format_t *)dict;
-            ptr->ver = dict_ptr->schema_version;
+            ptr->ver = 0xF1F0F000;
             ptr->schema_class = SCHEMACLASS_MAJOR;
-            u8 *end_ptr = pldm_bej_encode(root, &(gs_op_buf.op_result.data[sizeof(bejencoding_t)]));
+            u8 *end_ptr = pldm_bej_encode(root, ((u8 *)ptr + sizeof(bejencoding_t)));
             gs_op_buf.op_result.len = end_ptr - gs_op_buf.op_result.data;
             // for (u16 i = 0; i < gs_op_buf.op_result.len; i++) {
                 // printf("0x%02x, ", gs_op_buf.op_result.data[i]);
@@ -1085,110 +1176,25 @@ void pldm_redfish_op(void)
         }
         // root = NULL;
         // pldm_cjson_pool_reinit();
-        // bej_root = pldm_bej_decode(&(gs_op_buf.op_result.data[sizeof(bejencoding_t)]), gs_op_buf.op_result.len - sizeof(bejencoding_t), annc_dict, dict, bej_root);
+        // bej_root = pldm_bej_decode(&(gs_op_buf.op_result.data[sizeof(bejencoding_t)]), gs_op_buf.op_result.len - sizeof(bejencoding_t), anno_dict, dict, bej_root);
         // if (bej_root) {
         //     pldm_cjson_printf_root(bej_root);
         //     LOG("Decode success");
         // }
-        if (root && gs_op_info.op_type != READ && gs_op_info.op_type != HEAD) {
+        if (root && gs_op_info.op_type != READ && gs_op_info.op_type != HEAD && gs_op_info.op_type != ACTION) {
             pldm_cjson_cal_len_to_root(root, OTHER_TYPE);
-            u8 *ptr = pldm_bej_encode(root, g_resourse_bej[resourse_indenty].data);
-            g_resourse_bej[resourse_indenty].is_bej = 1;
-            g_resourse_bej[resourse_indenty].len = ptr - g_resourse_bej[resourse_indenty].data;
+            u8 *data_end_ptr = pldm_bej_encode(root, g_resourse_bej[resourse_indenty + offset].data);
+            g_resourse_bej[resourse_indenty + offset].is_bej = 1;
+            g_resourse_bej[resourse_indenty + offset].len = data_end_ptr - g_resourse_bej[resourse_indenty + offset].data;
             // pldm_cjson_delete_node(root);
             root = NULL;
         }
 L_EXIT:
         gs_op_info.dev_status = gs_op_buf.op_result.len ? OPERATION_HAVE_RESULTS : OPERATION_COMPLETED;
         pldm_cjson_pool_reinit();
+        if (err_code != 0) {
+            gs_op_info.dev_status = OPERATION_FAILED;
+            LOG("resourse_indenty : %d, op_type : %d, err code : %d", resourse_indenty, gs_op_info.op_type, err_code);
+        }
         // pldm_redfish_task_execute_event_generate(g_pldm_monitor_info.pldm_event_rbuf, (pldm_redfish_task_executed_event_data_format_t *)&(g_pldm_redfish_base_info.prev_op_identify));
-}
-
-void pldm_redfish_op_task(void *param)
-{
-//     uint32_t ulNotifiedValue = 0x00;
-//     BaseType_t xResult = pdFALSE;
-//     redfish_op_task_handle = xTaskGetHandle("REDFISH");
-
-//     // 所有op都在task中异步执行
-//     while (1) {
-//         xResult = xTaskNotifyWait( pdFALSE,     /* Don't clear bits on entry. */
-//                         0xFFFF0000,              /* Clear all bits on exit. */
-//                         &ulNotifiedValue,       /* Stores the notified value. */
-//                         portMAX_DELAY );
-//         if( xResult != pdPASS ) continue;
-
-//         gs_op_info.dev_status = OPERATION_RUNNING;
-//         gs_op_buf.op_result.len = 0;
-
-//         pldm_cjson_t *bej_root = NULL;
-//         pldm_cjson_t *root = NULL;
-
-//         u8 *annc_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
-//         u8 *dict = &g_needed_dict[DICT_FMT_HDR_LEN];
-
-//         u8 resourse_indenty = resource_id_to_resource_identity(g_pldm_redfish_base_info.prev_op_identify.resource_id);
-//         if (resourse_indenty > ETH_INTERFACE_COLLECTION) goto L_EXIT;
-
-//         resourse_indenty -= NETWORK_ADAPTER;
-
-//         u8 ret = pldm_redfish_get_dict_data(g_pldm_redfish_base_info.prev_op_identify.resource_id, \
-//         g_needed_dict, pldm_redfish_get_dict_len(g_pldm_redfish_base_info.prev_op_identify.resource_id));
-//         if (ret == false) goto L_EXIT;
-
-//         if (g_resourse_bej[resourse_indenty].is_bej) 
-//             root = pldm_bej_decode(g_resourse_bej[resourse_indenty].data, annc_dict, dict, root);
-//         else root = g_schemas[resourse_indenty](dict, annc_dict);
-
-//         if (!root) goto L_EXIT;
-
-//         if (gs_op_buf.op_data.len) {
-//             bej_root = pldm_bej_decode(&(gs_op_buf.op_data.data[sizeof(bejencoding_t)]), annc_dict, dict, bej_root);
-//             if (!bej_root) goto L_EXIT;
-//         }
-
-//         switch (gs_op_info.op_type) {
-//             case READ:
-//                 root = pldm_cjson_read(root, gs_op_info.collection_skip, gs_op_info.collection_top);
-//                 break;
-//             case UPDATE:
-//                 root = pldm_cjson_update(root, bej_root);
-//                 break;
-//             case REPLACE:
-//                 root = pldm_cjson_replace(root, bej_root);
-//                 break;
-//             case ACTION:
-//                 root = pldm_cjson_action(root);
-//                 break;
-//             case HEAD:
-//                 root = pldm_cjson_head(root);                   /*  not return message body information. */
-//                 break;
-//             default :
-//                 LOG("err op type : %d", gs_op_info.op_type);
-//                 goto L_EXIT;
-//                 break;
-//         }
-//         bej_root = NULL;
-//         pldm_cjson_cal_len_to_root(root, gs_op_info.op_type);
-//         if (gs_op_info.op_type & (READ || UPDATE || REPLACE || HEAD)) {
-//             // cm_memcpy(gs_op_buf.op_result.data, gs_op_buf.op_data.data, sizeof(bejencoding_t));
-//             bejencoding_t *ptr = (bejencoding_t *)gs_op_buf.op_result.data;
-//             pldm_redfish_dictionary_format_t *dict_ptr = (pldm_redfish_dictionary_format_t *)dict;
-//             ptr->ver = dict_ptr->schema_version;
-//             ptr->schema_class = SCHEMACLASS_MAJOR;
-//             u8 *end_ptr = pldm_bej_encode(root, ((u8 *)ptr + sizeof(bejencoding_t)));
-//             gs_op_buf.op_result.len = end_ptr - gs_op_buf.op_result.data;
-//         }
-//         if (root && gs_op_info.op_type != READ) {
-//             pldm_cjson_cal_len_to_root(root, OTHER_TYPE);
-//             pldm_bej_encode(root, g_resourse_bej[resourse_indenty].data);
-//             g_resourse_bej[resourse_indenty].is_bej = 1;
-//             // pldm_cjson_delete_node(root);
-//             root = NULL;
-//         }
-// L_EXIT:
-//         gs_op_info.dev_status = gs_op_buf.op_result.len ? OPERATION_HAVE_RESULTS : OPERATION_COMPLETED;
-//         pldm_cjson_pool_reinit();
-//         pldm_redfish_task_execute_event_generate(g_pldm_monitor_info.pldm_event_rbuf, (pldm_redfish_task_executed_event_data_format_t *)&(g_pldm_redfish_base_info.prev_op_identify));
-//     }
 }
