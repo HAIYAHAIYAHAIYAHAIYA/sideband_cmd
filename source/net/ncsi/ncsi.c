@@ -69,7 +69,7 @@
 
 //     u32 status = 0;
 
-//     CM_LOG_WARN("ncsi port %d link %x, speed 0x%X", port, sts.link, sts.speed);
+//     LOG("ncsi port %d link %x, speed 0x%X", port, sts.link, sts.speed);
 
 //     if (sts.link == LINK_UP) {
 //         status = 1;           // Link is up
@@ -216,7 +216,7 @@
 //     // set by cmd 0 or init status.
 //     if ((dev->channel_status & BIT(NCSI_CHN_READY)) == 0) {
 //         dev->respond->rsp.reason = INTERFACE_INIT_REQUIRED;
-//         CM_LOG_WARN("chan id %d cmd 0x%X reason 0x%X", dev->channel_id, dev->respond->rsp.common.type, dev->respond->rsp.reason);
+//         LOG("chan id %d cmd 0x%X reason 0x%X", dev->channel_id, dev->respond->rsp.common.type, dev->respond->rsp.reason);
 //     }
 // }
 
@@ -347,7 +347,7 @@
 //         /* if code == COMMAND_FAILED, some BMCs will consider the network card as not supporting NCSI.*/
 //         //dev->respond->rsp.code = COMMAND_FAILED;
 //         dev->respond->rsp.reason = CHANNEL_NOT_READY;
-//         CM_LOG_WARN("ncsi chan enable, ignore");
+//         LOG("ncsi chan enable, ignore");
 //         goto resp;
 //     }
 //     lan_port_enable(dev->channel_id, ENABLE);
@@ -394,7 +394,7 @@
 // {
 //     if (ncsi_check_chn(dev, NCSI_CHN_TX_ENABLE, 1) < 0) return;
 
-//     CM_LOG_WARN("cmd: 06, enable tx for chan %d", dev->channel_id);
+//     LOG("cmd: 06, enable tx for chan %d", dev->channel_id);
 
 //     ncsi_init_resp(dev);
 //     gs_ncsi_current_chn = dev->channel_id;
@@ -403,7 +403,7 @@
 //         /* if code == COMMAND_FAILED, some BMCs will consider the network card as not supporting NCSI.*/
 //         //dev->respond->rsp.code = COMMAND_FAILED;
 //         dev->respond->rsp.reason = CHANNEL_NOT_READY;
-//         CM_LOG_WARN("ncsi tx enable, ignore");
+//         LOG("ncsi tx enable, ignore");
 //         goto resp;
 //     }
 
@@ -570,7 +570,7 @@
 
 //     dev->brdc_mode = ntohl(req->mode);
 //     // Enable broadcast filter to hardware
-//     CM_LOG_WARN("cmd: 10, port %d brdc en: 0x%X", dev->channel_id, dev->brdc_mode);
+//     LOG("cmd: 10, port %d brdc en: 0x%X", dev->channel_id, dev->brdc_mode);
 
 //     if (dev->brdc_mode & CBIT(0)) { // arp
 //         if(dev->channel_id == gs_ncsi_current_chn) {  // only for ncsi port
@@ -851,7 +851,7 @@
 
 // static void unsupported_cmd(protocol_msg_t *skb, ncsi_chn_dev *dev)
 // {
-//   CM_LOG_WARN("the cmd is not supported");
+//   LOG("the cmd is not supported");
 //   ncsi_init_resp(dev);
 //   dev->respond->rsp.reason = COMMAND_UNSUPPORTED;
 //   ncsi_tx2(skb);
@@ -903,11 +903,11 @@
 //     cmd = req->cmd.common.type;
 
 //     if (cmd != 0x0A) // polling link status cmd
-//         CM_LOG_WARN("ncsi cmd %x, chan %X", req->cmd.common.type, channel);
+//         LOG("ncsi cmd %x, chan %X", req->cmd.common.type, channel);
 
 //     if (channel == 0x1F) {  // 0x1F for all channels
 //         channel = ncsi_get_valid_port();
-//         CM_LOG_WARN("[W] valid port: 0x1F -> %d", channel);
+//         LOG("[W] valid port: 0x1F -> %d", channel);
 //     }
 
 //     if (channel >= g_sys.cfg.port_num || pkg_id != NCSI_PKG_ID) {
@@ -1051,11 +1051,11 @@
 //     cmd = req->cmd.common.type;
 
 //     if (cmd != 0x0A) // polling link status cmd
-//         CM_LOG_WARN("ncsi cmd %x, chan %X", req->cmd.common.type, channel);
+//         LOG("ncsi cmd %x, chan %X", req->cmd.common.type, channel);
 
 //     if (channel == 0x1F) {  // 0x1F for all channels
 //         channel = ncsi_get_valid_port();
-//         CM_LOG_WARN("[W] valid port: 0x1F -> %d", channel);
+//         LOG("[W] valid port: 0x1F -> %d", channel);
 //     }
 
 //     if (channel >= g_sys.cfg.port_num || pkg_id != NCSI_PKG_ID) {
