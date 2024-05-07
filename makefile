@@ -2,7 +2,7 @@ OUTPUT_DIR = build
 SOURCE_DIR = source
 INCLUDE_DIR = include
 # CFLAGS = -c -g -lpthread
-CFLAGS = -c -g
+CFLAGS = -c -g -O2
 MKDIR = mkdir -p
 NUL = dev/null
 
