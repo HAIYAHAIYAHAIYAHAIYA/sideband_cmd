@@ -1,6 +1,20 @@
 import os
 import sys
 
+import subprocess
+
+def install_module(module_name):
+    subprocess.check_call(["pip3", "install", module_name])
+    # print(f"{module_name}模块已安装")
+
+def check_and_install_module(module_name):
+    try:
+        __import__(module_name)
+        # print(f"{module_name}模块已存在")
+    except ImportError:
+        # print(f"{module_name}模块不存在，正在安装...")
+        install_module(module_name)
+
 def BIT(pos):
     return (1 << pos)
 

@@ -8,62 +8,36 @@
         {
             "DeviceUpdateOptionFlags": [0],
             "ComponentImageSetVersionString": "N:nnnnnnnnO:ooooooooT:tttttttttt",
-            "ApplicableComponents": [0, 1],
+            "ApplicableComponents": [0],
             "Descriptors": [
                 {
-                    "DescriptorType": 0,
+                    "DescriptorType": "0x00",
                     "DescriptorData": "8086"
                 },
                 {
-                    "DescriptorType": 256,
+                    "DescriptorType": "0x100",
                     "DescriptorData": "FFFF"
                 },
                 {
-                    "DescriptorType": 257,
+                    "DescriptorType": "0x101",
                     "DescriptorData": "FFFF"
                 },
                 {
-                    "DescriptorType": 258,
+                    "DescriptorType": "0x102",
                     "DescriptorData": "FFFF"
-                }
-            ],
-            "FirmwareDevicePackageData" : [
-                {
-                    "Type" : 0,
-                    "Current_GFID": 1,
-                    "Origin_GFID" : 1
-                },
-                {
-                    "Type" : 1,
-                    "VPD_key": 1234,
-                    "V0_Key_Data" : 1234
                 }
             ]
         }
     ],
     "ComponentImageInformationArea": [
         {
-            "ComponentClassification": 10,
+            "ComponentClassification": 13,
             "ComponentIdentifier": 0,
             "ComponentOptions": [],
             "ComponentComparisonStamp": "0xFFFFFFFE",
-            "RequestedComponentActivationMethod": [3, 4],
-            "ComponentVersionString": "CCCCCCCC.SSSSSSSS"
-        },
-        {
-            "ComponentClassification": 10,
-            "ComponentIdentifier": 1,
-            "ComponentOptions": [],
-            "RequestedComponentActivationMethod": [3, 4],
-            "ComponentVersionString": "CCCCCCCC.SSSSSSSS"
-        },
-        {
-            "ComponentClassification": 10,
-            "ComponentIdentifier": 2,
-            "ComponentOptions": [],
-            "RequestedComponentActivationMethod": [3, 4],
+            "RequestedComponentActivationMethod": [4],
             "ComponentVersionString": "CCCCCCCC.SSSSSSSS"
         }
     ],
-    "valid": "0x07"
+    "valid": "0x01"
 }

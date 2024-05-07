@@ -11,14 +11,16 @@ import struct
 import sys
 from datetime import datetime
 
-from bitarray import bitarray
-from bitarray.util import ba2int
-
 parent_path = os.path.dirname(sys.path[0])
 if parent_path not in sys.path:
     sys.path.append(parent_path)
 
 from scripts_cfg import *
+
+check_and_install_module("bitarray")
+
+from bitarray import bitarray
+from bitarray.util import ba2int
 
 class macros:
     SLOT_IMG_VALID          = 0x01
@@ -289,7 +291,7 @@ def prepare_record_descriptors(descriptors):
     descriptor_count = 0
 
     for descriptor in descriptors:
-        descriptor_type = descriptor["DescriptorType"]
+        descriptor_type = get_config_val(descriptor["DescriptorType"])
         if descriptor_count == 0:
             if (
                 initial_descriptor_type_name_length.get(descriptor_type)
@@ -330,7 +332,7 @@ def prepare_record_descriptors(descriptors):
             record_descriptors.extend(bytearray.fromhex(vendor_desc_data))
             descriptor_count += 1
         else:
-            descriptor_type = descriptor["DescriptorType"]
+            descriptor_type = get_config_val(descriptor["DescriptorType"])
             descriptor_data = descriptor["DescriptorData"]
             descriptor_length = len(bytearray.fromhex(descriptor_data))
             if (
