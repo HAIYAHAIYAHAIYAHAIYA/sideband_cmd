@@ -7,6 +7,9 @@
 #define PDR_POOL_SIZE                   (9 * 512)          /* all size 2825 bytes , only static size 968 bytes, except redfish pdr. */
 #define NOT_FIELD                       (0xFF)
 
+#define LINK_DOWN                               0
+#define LINK_UP                                 1
+
 typedef enum {
     TERMINUS_LOCATOR_PDR = 1,
     NUMERIC_SENSOR_PDR = 2,
@@ -447,7 +450,7 @@ typedef struct {
     u8 present_state;
     u8 previous_state;
     u8 sensor_data_size;
-    u8 present_reading;
+    u16 present_reading;
 } pldm_temp_sensor_data_struct_t, pldm_link_speed_data_struct_t, pldm_plug_power_data_struct_t, pldm_data_struct_t;
 
 typedef struct {
@@ -467,6 +470,17 @@ typedef struct {
     u32 *pdr_addr;
     u16 sensor_id;
 } pldm_temp_sensor_monitor_t;
+
+typedef struct {
+    u16 warning_high;
+	u16 critical_high;
+	u16 fatal_high;
+} pldm_temp_sensor_threshold_data_t;
+
+typedef struct {
+    u32 max_readable;
+    u32 min_readable;
+} pldm_speed_sensor_cap_t;
 
 #pragma pack()
 

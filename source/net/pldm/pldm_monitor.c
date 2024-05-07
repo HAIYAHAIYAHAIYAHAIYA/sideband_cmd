@@ -971,11 +971,15 @@ void pldm_temp_monitor_handle(void)
                 LOG("temp sensor not find. sensor id : %d", sensor_id);
                 continue;
             }
-            if (sensor_data->present_reading < temp_pdr->thermal_pdr.warning_high) {
+            u16 present_reading = sensor_data->present_reading;
+            if (sensor_data->present_reading & CBIT(15))    /* -127 ~ 127 */
+                present_reading = 0;
+
+            if (present_reading < temp_pdr->thermal_pdr.warning_high) {
                 present_state = NORMAL;
-            }else if (sensor_data->present_reading < temp_pdr->thermal_pdr.critical_high) {
+            }else if (present_reading < temp_pdr->thermal_pdr.critical_high) {
                 present_state = TEMP_UPPER_WARNING;
-            } else if (sensor_data->present_reading < temp_pdr->thermal_pdr.fatal_high) {
+            } else if (present_reading < temp_pdr->thermal_pdr.fatal_high) {
                 present_state = TEMP_UPPER_CRITICAL;
             } else {
                 present_state = TEMP_UPPER_FATAL;
