@@ -38,8 +38,15 @@ static void pldm_redfish_gen_recv_cmd_04(u8 *buf)
     gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_UNKNOW;
 }
 
+extern u8 dict_etag[14][9];
+extern u8 resource_id_to_resource_identity(u32 resource_id);
 static void pldm_redfish_gen_recv_cmd_05(u8 *buf)
 {
+    pldm_redfish_get_resource_etag_rsp_dat_t *rsp_dat = (pldm_redfish_get_resource_etag_rsp_dat_t *)(buf + sizeof(pldm_response_t));
+    u8 resourse_indenty = resource_id_to_resource_identity(g_cur_op_identify.resource_id);
+    resourse_indenty -= NETWORK_ADAPTER;
+    cm_memcpy(dict_etag[resourse_indenty], rsp_dat->etag.val, rsp_dat->etag.len);
+    LOG("etag recv : %s, resourse_indenty : %d, resource_id : %lld", rsp_dat->etag.val, resourse_indenty, g_cur_op_identify.resource_id);
     gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_UNKNOW;
 }
 
@@ -76,12 +83,16 @@ static void pldm_redfish_gen_recv_cmd_0b(u8 *buf)
 static void pldm_redfish_gen_recv_cmd_10(u8 *buf)
 {
     pldm_response_t *rsp_hdr = (pldm_response_t *)buf;
-
     gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_UNKNOW;
-    if (g_cur_op_identify.op_flg & CBIT(2)) {
-        gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_11;
-    } else if ((g_cur_op_identify.op_flg & CBIT(1)) && rsp_hdr->cpl_code == MCTP_COMMAND_SUCCESS) {
-        gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_NEED_MULTI_SEND;
+
+    if (rsp_hdr->cpl_code == MCTP_COMMAND_SUCCESS) {
+        if (g_cur_op_identify.op_flg & CBIT(2)) {
+            gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_11;
+        } else if ((g_cur_op_identify.op_flg & CBIT(1))) {
+            gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_NEED_MULTI_SEND;
+        }
+    } else {
+        g_cur_op_identify.resource_id = 0;
     }
 }
 
@@ -97,7 +108,11 @@ static void pldm_redfish_gen_recv_cmd_11(u8 *buf)
     LOG("result_transfer_handle : %lld", rsp_dat->result_transfer_handle);
     LOG("permission_flg : %#x", rsp_dat->permission_flg);
     LOG("rsp_payload_len : %d", rsp_dat->rsp_payload_len);
-    LOG("etag.val : %s", rsp_dat->etag.val);
+    LOG("Etag : ");
+    for (u8 i = 0; i < rsp_dat->etag.len; i++) {
+        printf("%c", rsp_dat->etag.val[i]);
+    }
+    LOG("");
 
     gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_UNKNOW;
     if ((g_cur_op_identify.op_flg & CBIT(1)) && rsp_hdr->cpl_code == MCTP_COMMAND_SUCCESS) {
@@ -129,15 +144,20 @@ static void pldm_redfish_gen_recv_cmd_14(u8 *buf)
     LOG("result_transfer_handle : %lld", rsp_dat->result_transfer_handle);
     LOG("permission_flg : %#x", rsp_dat->permission_flg);
     LOG("rsp_payload_len : %d", rsp_dat->rsp_payload_len);
+    LOG("Etag : ");
+    for (u8 i = 0; i < rsp_dat->etag.len; i++) {
+        printf("%c", rsp_dat->etag.val[i]);
+    }
+    LOG("");
     if (rsp_dat->op_status == OPERATION_HAVE_RESULTS) {
         if (rsp_dat->rsp_payload_len) {
             gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_UNKNOW;
-            u8 *annc_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
+            u8 *anno_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
             u8 *dict = &g_needed_dict[DICT_FMT_HDR_LEN];
             pldm_cjson_t *root = NULL;
             u16 len = rsp_dat->rsp_payload_len - sizeof(bejencoding_t);
 
-            root = pldm_bej_decode(&(rsp_dat->etag.val[rsp_dat->etag.len + sizeof(bejencoding_t)]), len, annc_dict, dict, root);
+            root = pldm_bej_decode(&(rsp_dat->etag.val[rsp_dat->etag.len + sizeof(bejencoding_t)]), len, anno_dict, dict, root, 1);
             if (root) {
                 pldm_cjson_printf_root(root);
             }
@@ -193,14 +213,20 @@ static void pldm_redfish_gen_recv_cmd_31(u8 *buf)
             u32 *crc32 = (u32 *)&(rsp_dat->data[rsp_dat->data_len_bytes - 4]);
             u32 cal_crc = crc32_pldm(0xFFFFFFFFUL, op_result, dict_size - 4);
             LOG("result size : %d, crc result : %s", dict_size, cal_crc == *crc32 ? "true" : "false");
-            u8 *annc_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
+            u8 *anno_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
             u8 *dict = &g_needed_dict[DICT_FMT_HDR_LEN];
             pldm_cjson_t *root = NULL;
             u16 len = dict_size - sizeof(bejencoding_t) - 4;
 
-            root = pldm_bej_decode(&(op_result[sizeof(bejencoding_t)]), len, annc_dict, dict, root);
+            root = pldm_bej_decode(&(op_result[sizeof(bejencoding_t)]), len, anno_dict, dict, root, 1);
             if (root) {
                 pldm_cjson_printf_root(root);
+                u8 resourse_indenty = resource_id_to_resource_identity(g_cur_op_identify.resource_id);
+                resourse_indenty -= NETWORK_ADAPTER;
+                u8 etag[11];
+                varstring *var = (varstring *)etag;
+                pldm_cjson_get_etag(resourse_indenty, g_cur_op_identify.resource_id, var);
+                cm_memcpy(dict_etag[resourse_indenty], var->val, var->len);
             }
             pldm_cjson_pool_reinit();
             root = NULL;
