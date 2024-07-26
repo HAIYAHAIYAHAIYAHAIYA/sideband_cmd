@@ -5,7 +5,7 @@
 
 static u8 gs_pdrs_buf[PDR_POOL_SIZE] = {0};
 
-static u8 gs_entity_event_data[128] = {0};                                  /* for Platform Event Message cmd */
+static u8 gs_entity_event_data[256] = {0};                                  /* for Platform Event Message cmd */
 static pldm_event_data_t gs_pldm_event_data;
 
 static u32 gs_event_previous_data_transfer_handle = 0x00000000;
@@ -1051,7 +1051,7 @@ void pldm_event_send_handle(void)
     }
 
     u8 event_data_info[sizeof(pldm_event_data_t)] = {0};
-    u8 paylaod[128];
+    u8 paylaod[256];
     pldm_event_rbuf_try_read(g_pldm_monitor_info.pldm_event_rbuf, event_data_info, sizeof(pldm_event_data_t), 0);
     pldm_event_data_t *pldm_event_data = (pldm_event_data_t *)event_data_info;                       /* the oldest event */
     u8 event_cnt = g_event_id - pldm_event_data->event_id;

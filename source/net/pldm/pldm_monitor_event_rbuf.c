@@ -218,7 +218,7 @@ void pldm_redfish_msg_event_generate(void *p, u32 resource_id, u8 link_state)
         return;
     }
     u8 event_dict[PLDM_REDFISH_EVENT_DICT_LEN];
-    u8 event_buf[128] = {0};
+    u8 event_buf[256] = {0};
 
     u8 ret = pldm_redfish_get_dict_data(PLDM_BASE_EVENT_DICT_RESOURCE_ID, SCHEMACLASS_EVENT, event_dict, PLDM_REDFISH_EVENT_DICT_LEN);
     if (ret == false) return;
