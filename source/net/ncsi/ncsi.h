@@ -22,6 +22,53 @@ typedef unsigned short  __be16;
 typedef unsigned int    __be32;
 
 #pragma pack(1)
+
+typedef struct {
+    u16 inited   : 1;    /* init or not */
+    u16 port     : 2;    /* port id 0~3 */
+    u16 speed    : 3;    /* speed */
+    u16 link     : 1;    /* connect or not */
+    u16 lsc      : 1;    /* link status change would set this flag for ncsi polling */
+    u16 valid    : 1;    /* valid set to TRUE if get phy data success */
+    u16 rsvd     : 6;
+}link_sts_t;
+
+typedef struct {
+    u16 port_num    : 4;    /* 0~MAX_LAN_NUM */
+    u16 wol         : 1;
+    u16 ncsi        : 1;
+    u16 gpio        : 1;
+    u16 ovs         : 1;
+    u16 phy_type    : 8;
+} sys_cfg_t;
+
+typedef struct {
+    /* BCD encode */
+    u32 version;
+
+    /* cfg = sys_id - oem_cfg */
+    sys_cfg_t cfg;
+
+    /* support user oem cfg */
+    // oem_cmd_list_t cmd[OEM_CMD_SIZE / sizeof(oem_cmd_list_t)];
+
+    /* user authority */
+    // user_auth_t user;
+
+    /* part of seq takes a lot of time, in task instead of isr */
+    volatile u32 event;
+
+    /* just for debug */
+    // marker_t marker;
+
+    u32 mode;
+
+    u32 cpu_target;
+
+    /* each module show function list */
+    // core_crash_list_t *crash_show_list;
+} sys_ctrl_t;
+
 /* 16 bytes */
 typedef struct {
   unsigned char mc_id;        /* Management controller ID */

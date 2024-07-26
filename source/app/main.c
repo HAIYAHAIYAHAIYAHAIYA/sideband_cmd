@@ -10,6 +10,7 @@
 #include "pldm.h"
 #include "mctp.h"
 #include "pkt_gen.h"
+#include "ncsi.h"
 
 sys_ctrl_t g_sys;
 FILE *g_fp = NULL;
@@ -20,12 +21,13 @@ int cmd_get(void)
     LOG("Choice you protocol: ");
     LOG("\t1:mctp cmd!");
     LOG("\t2:pldm cmd!");
+    LOG("\t3:ncsi cmd!");
     LOG("\tff:quit!");
     LOG("input you wanted operation : ");
 	scanf("%x", &choice);
     while ((confirm = getchar()) != '\n')//用户再次输入空格键才表示其真正确认
 		continue;
-    while (choice != 0xFF && (choice < 1 || choice > 2))//判断执行1-8，并且检测合法输入
+    while (choice != 0xFF && (choice < 1 || choice > 3))//判断执行1-8，并且检测合法输入
 	{
 		LOG("you input: '%d' err! need re input : ", choice);
 		scanf("%x", &choice);
@@ -99,6 +101,18 @@ void mctp_process(protocol_msg_t *pkt)
     }
 }
 
+void ncsi_process(protocol_msg_t *pkt)
+{
+    int choice;
+    while (1) {
+        LOG("MCTP CMD");
+        choice = cmd_num_get();
+        if (choice == 0xFF) break;
+        ncsi_gen(choice, pkt->req_buf);
+        ncsi_rx2(pkt);
+    }
+}
+
 // void pldm_process(protocol_msg_t *pkt)
 // {
 //     int choice;
@@ -156,6 +170,7 @@ u8 rsp_buf[1024 + 4 + 5];
 int main(int argc, char * argv [])
 {
     cmd_init();
+    g_sys.cfg.port_num = 1;
     atexit (my_exit);
     LOG("hello world!");
     int choice;
@@ -171,6 +186,10 @@ int main(int argc, char * argv [])
             break;
             case 2:
             pldm_process(&pkt);
+            break;
+            case 3:
+            ncsi_process(&pkt);
+            break;
             default:
             LOG("choice : %d", choice);
             break;

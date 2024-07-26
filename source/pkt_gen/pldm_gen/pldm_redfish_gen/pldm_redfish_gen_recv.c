@@ -131,7 +131,7 @@ static void pldm_redfish_gen_recv_cmd_13(u8 *buf)
     gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_UNKNOW;
 }
 
-extern u8 g_needed_dict[PLDM_REDFISH_PORT_DICT_LEN];
+extern u8 g_needed_dict[PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN];
 extern u8 g_anno_dict[PLDM_REDFISH_ANNO_DICT_LEN];
 static void pldm_redfish_gen_recv_cmd_14(u8 *buf)
 {
@@ -180,7 +180,7 @@ static void pldm_redfish_gen_recv_cmd_15(u8 *buf)
 
 static void pldm_redfish_gen_recv_cmd_16(u8 *buf)
 {
-
+    gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_UNKNOW;
 }
 
 static void pldm_redfish_gen_recv_cmd_30(u8 *buf)

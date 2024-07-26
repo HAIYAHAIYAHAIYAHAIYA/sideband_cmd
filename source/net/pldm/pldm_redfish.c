@@ -9,13 +9,11 @@
 pldm_redfish_base_info_t g_pldm_redfish_base_info;
 static op_info_t gs_op_info = {.dev_status = OPERATION_INACTIVE};
 static op_data_buf_t gs_op_buf;
-static u8 etag[ALL_SCHEMA][256];
+static u8 etag[ALL_SCHEMA][9];
 pldm_redfish_bej_t g_resourse_bej[PLDM_REDFISH_RESOURCE_NUM];
 u8 g_dict_info[PLDM_REDFISH_DICT_INFO_LEN];
 u8 g_anno_dict[PLDM_REDFISH_ANNO_DICT_LEN];
-u8 g_needed_dict[PLDM_REDFISH_PORT_DICT_LEN];
-
-u16 pldm_redfish_get_dict_len(u32 resource_id);
+u8 g_needed_dict[PLDM_REDFISH_ANNO_DICT_LEN];
 
 extern pldm_monitor_base_info_t g_pldm_monitor_info;
 extern schema_create g_schemas[11];
@@ -23,24 +21,58 @@ extern schema_create g_schemas[11];
 extern void pldm_unsupport_cmd(protocol_msg_t *pkt, int *pkt_len);
 extern u32 crc32_pldm(u32 init_crc, u8 *data, u32 len);
 
-pldm_redfish_schema_info_t schema_info[ALL_SCHEMA] = {
-    [EVENT]                             = {SCHEMACLASS_EVENT,                               BIT(READ),                                          {"Event.json"}},
-    [REDFISH_PAYLOAD_ANNOTATIONS]       = {SCHEMACLASS_ANNOTATION,                          BIT(READ),                                          {"redfish-payload-annotations.v1_0_2.json"}},
-    [REDFISH_ERROR]                     = {SCHEMACLASS_ERROR,                               BIT(READ),                                          {"v1/redfish-error.v1_0_0.json"}},
-    [REGISTRY]                          = {SCHEMACLASS_REGISTRY,                            BIT(READ),                                          {"Registry.v1_5_0.json"}},
-    [NETWORK_ADAPTER]                   = {SCHEMA_CLASS(NETWORK_ADAPTER),                   SCHEMA_ALLOWED_OP(NETWORK_ADAPTER),                 {"NetworkAdapter.v1_5_0.json"}},
-    [NETWORK_INTERFACE]                 = {SCHEMA_CLASS(NETWORK_INTERFACE),                 SCHEMA_ALLOWED_OP(NETWORK_INTERFACE),               {"NetWorkInterface.v1_2_0.json"}},
-    [PCIE_DEVICE]                       = {SCHEMA_CLASS(PCIE_DEVICE),                       SCHEMA_ALLOWED_OP(PCIE_DEVICE),                     {"PCIeDevice.v1_4_0.json"}},
-    [PORT_COLLECTION]                   = {SCHEMA_CLASS(PORT_COLLECTION),                   SCHEMA_ALLOWED_OP(PORT_COLLECTION),                 {"PortCollection.json", "Port.json"}},
-    [NETWORK_DEVICE_FUNC_COLLECTION]    = {SCHEMA_CLASS(NETWORK_DEVICE_FUNC_COLLECTION),    SCHEMA_ALLOWED_OP(NETWORK_DEVICE_FUNC_COLLECTION),  {"NetWorkDeviceFunctionCollection.json", "NetWorkDeviceFunction.json"}},
-    [PCIE_FUNC_COLLECTION]              = {SCHEMA_CLASS(PCIE_FUNC_COLLECTION),              SCHEMA_ALLOWED_OP(PCIE_FUNC_COLLECTION),            {"PCIeFunctionCollection.json", "PCIeFunction.json"}},
-    [PORT_IDENTIFY]                     = {SCHEMA_CLASS(PORT_IDENTIFY),                     SCHEMA_ALLOWED_OP(PORT_IDENTIFY),                   {"NetworkPort.v1_3_1.json"}},
-    [NETWORK_DEVICE_FUNC]               = {SCHEMA_CLASS(NETWORK_DEVICE_FUNC),               SCHEMA_ALLOWED_OP(NETWORK_DEVICE_FUNC),             {"NetWorkDeviceFunction.v1_3_3.json"}},
-    [PCI_FUNC]                          = {SCHEMA_CLASS(PCI_FUNC),                          SCHEMA_ALLOWED_OP(PCI_FUNC),                        {"PCIeFunction.v1_2_3.json"}},
-    [ETH_INTERFACE]                     = {SCHEMA_CLASS(ETH_INTERFACE),                     SCHEMA_ALLOWED_OP(ETH_INTERFACE),                   {"EthernetInterface.v1_5_1.json"}},
-    [ETH_INTERFACE_COLLECTION]          = {SCHEMA_CLASS(ETH_INTERFACE_COLLECTION),          SCHEMA_ALLOWED_OP(ETH_INTERFACE_COLLECTION),        {"EthernetInterfaceCollection.json", "EthernetInterface.json"}},
-    // [ALL_SCHEMA]                        = {SCHEMA_CLASS(ALL_SCHEMA),                        SCHEMA_ALLOWED_OP(PCIE_FUNC_COLLECTION),            {"Event.json", "redfish-payload-annotations.v1_0_2.json", "v1/redfish-error.v1_0_0.json"}}
-};
+static void pldm_redfish_get_schema_info(u8 identify, pldm_redfish_schema_info_t *info)
+{
+    if (!info || identify > 14) return;
+    pldm_redfish_schema_info_t schema_info[ALL_SCHEMA] = {
+        [EVENT]                             = {SCHEMACLASS_EVENT,                               BIT(READ),                                          },
+        [REDFISH_PAYLOAD_ANNOTATIONS]       = {SCHEMACLASS_ANNOTATION,                          BIT(READ),                                          },
+        [REDFISH_ERROR]                     = {SCHEMACLASS_ERROR,                               BIT(READ),                                          },
+        [REGISTRY]                          = {SCHEMACLASS_REGISTRY,                            BIT(READ),                                          },
+        [NETWORK_ADAPTER]                   = {SCHEMA_CLASS(NETWORK_ADAPTER),                   SCHEMA_ALLOWED_OP(NETWORK_ADAPTER),                 },
+        [NETWORK_INTERFACE]                 = {SCHEMA_CLASS(NETWORK_INTERFACE),                 SCHEMA_ALLOWED_OP(NETWORK_INTERFACE),               },
+        [PCIE_DEVICE]                       = {SCHEMA_CLASS(PCIE_DEVICE),                       SCHEMA_ALLOWED_OP(PCIE_DEVICE),                     },
+        [PORT_COLLECTION]                   = {SCHEMA_CLASS(PORT_COLLECTION),                   SCHEMA_ALLOWED_OP(PORT_COLLECTION),                 },
+        [NETWORK_DEVICE_FUNC_COLLECTION]    = {SCHEMA_CLASS(NETWORK_DEVICE_FUNC_COLLECTION),    SCHEMA_ALLOWED_OP(NETWORK_DEVICE_FUNC_COLLECTION),  },
+        [PCIE_FUNC_COLLECTION]              = {SCHEMA_CLASS(PCIE_FUNC_COLLECTION),              SCHEMA_ALLOWED_OP(PCIE_FUNC_COLLECTION),            },
+        [PORT_IDENTIFY]                     = {SCHEMA_CLASS(PORT_IDENTIFY),                     SCHEMA_ALLOWED_OP(PORT_IDENTIFY),                   },
+        [NETWORK_DEVICE_FUNC]               = {SCHEMA_CLASS(NETWORK_DEVICE_FUNC),               SCHEMA_ALLOWED_OP(NETWORK_DEVICE_FUNC),             },
+        [PCI_FUNC]                          = {SCHEMA_CLASS(PCI_FUNC),                          SCHEMA_ALLOWED_OP(PCI_FUNC),                        },
+        [ETH_INTERFACE]                     = {SCHEMA_CLASS(ETH_INTERFACE),                     SCHEMA_ALLOWED_OP(ETH_INTERFACE),                   },
+        [ETH_INTERFACE_COLLECTION]          = {SCHEMA_CLASS(ETH_INTERFACE_COLLECTION),          SCHEMA_ALLOWED_OP(ETH_INTERFACE_COLLECTION),        },
+        // [ALL_SCHEMA]                        = {SCHEMA_CLASS(ALL_SCHEMA),                        SCHEMA_ALLOWED_OP(PCIE_FUNC_COLLECTION),            {"Event.json", "redfish-payload-annotations.v1_0_2.json", "v1/redfish-error.v1_0_0.json"}}
+    };
+    cm_memcpy(info, &schema_info[identify], sizeof(pldm_redfish_schema_info_t));
+}
+
+void pldm_redfish_get_schema_uri_suffix(u8 identify, char *uri, u8 idx)
+{
+    if (!uri || identify > 14) return;
+    pldm_redfish_schema_uri_t schema_uri[ALL_SCHEMA] = {
+        [EVENT]                             = {{"Event.json", NULL}},
+        [REDFISH_PAYLOAD_ANNOTATIONS]       = {{"redfish-payload-annotations.v1_0_2.json", NULL}},
+        [REDFISH_ERROR]                     = {{"v1/redfish-error.v1_0_0.json", NULL}},
+        [REGISTRY]                          = {{"Registry.v1_5_0.json", NULL}},
+        [NETWORK_ADAPTER]                   = {{"NetworkAdapter.v1_5_0.json", NULL}},
+        [NETWORK_INTERFACE]                 = {{"NetWorkInterface.v1_2_0.json", NULL}},
+        [PCIE_DEVICE]                       = {{"PCIeDevice.v1_4_0.json", NULL}},
+        [PORT_COLLECTION]                   = {{"PortCollection.json", "Port.json"}},
+        [NETWORK_DEVICE_FUNC_COLLECTION]    = {{"NetWorkDeviceFunctionCollection.json", "NetWorkDeviceFunction.json"}},
+        [PCIE_FUNC_COLLECTION]              = {{"PCIeFunctionCollection.json", "PCIeFunction.json"}},
+        [PORT_IDENTIFY]                     = {{"NetworkPort.v1_3_1.json", NULL}},
+        [NETWORK_DEVICE_FUNC]               = {{"NetWorkDeviceFunction.v1_3_3.json", NULL}},
+        [PCI_FUNC]                          = {{"PCIeFunction.v1_2_3.json", NULL}},
+        [ETH_INTERFACE]                     = {{"EthernetInterface.v1_5_1.json", NULL}},
+        [ETH_INTERFACE_COLLECTION]          = {{"EthernetInterfaceCollection.json", "EthernetInterface.json"}},
+        // [ALL_SCHEMA]                        = {SCHEMA_CLASS(ALL_SCHEMA),                        SCHEMA_ALLOWED_OP(PCIE_FUNC_COLLECTION),            {"Event.json", "redfish-payload-annotations.v1_0_2.json", "v1/redfish-error.v1_0_0.json"}}
+    };
+    u8 uri_len = 0;
+    if (schema_uri[identify].uri[idx]) {
+        uri_len = cm_strlen(schema_uri[identify].uri[idx]);
+        cm_memcpy(uri, schema_uri[identify].uri[idx], uri_len);
+    }
+    uri[uri_len] = '\0';
+}
 
 static void pldm_redfish_clear_op_param(void)
 {
@@ -193,14 +225,22 @@ static void pldm_redfish_get_schema_dictionary(protocol_msg_t *pkt, int *pkt_len
         return;
     }
 
-    u8 ret = pldm_redfish_get_dict_data(req_dat->resource_id, req_dat->requested_schemaclass, g_needed_dict, pldm_redfish_get_dict_len(req_dat->resource_id));
+    if (resource_identify == SCHEMACLASS_ANNOTATION) {
+        gs_op_buf.buf_ptr.data = &g_anno_dict[DICT_FMT_HDR_LEN];
+        gs_op_buf.buf_ptr.len = PLDM_REDFISH_ANNO_DICT_LEN;
+        goto L_EXIT;
+    }
+
+    u8 ret = pldm_redfish_get_dict_data(req_dat->resource_id, req_dat->requested_schemaclass, g_needed_dict, 0);
     if (ret) {
         pldm_redfish_dictionary_format_t *dict_fmt = (pldm_redfish_dictionary_format_t *)&(g_needed_dict[DICT_FMT_HDR_LEN]);
         gs_op_buf.buf_ptr.len = dict_fmt->dictionary_size;
+        LOG("dictionary_size : %d, resource id : %d", gs_op_buf.buf_ptr.len, req_dat->resource_id);
     } else {
         gs_op_buf.buf_ptr.len = 0;
     }
-
+    gs_op_buf.buf_ptr.data = &(g_needed_dict[DICT_FMT_HDR_LEN]);
+L_EXIT:
     gs_op_buf.multipartrecv_first_transfer_handle = 0;
     rsp_dat->dictionary_fmt = 0x00;
     rsp_dat->transfer_handle = gs_op_buf.multipartrecv_first_transfer_handle;    // 后续当MC将此handle传输回来后，RDE设备通过将此handle作为schema/dictionary地址数组索引转换成地址后，将地址对应数据返回给MC
@@ -229,10 +269,14 @@ static void pldm_redfish_get_schema_uri(protocol_msg_t *pkt, int *pkt_len)
 
     u8 uri_idx = (req_dat->requested_schemaclass == SCHEMACLASS_MAJOR) ? 0 : 1;
     if (resource_identify <= REGISTRY) uri_idx = 0;
+
+    char uri_suffix[39];
+    pldm_redfish_get_schema_uri_suffix(resource_identify, uri_suffix, uri_idx);
+
     u8 uri_prefix_len = cm_strlen(schema_uri_prefix);
-    u8 uri_suffix_len = cm_strlen(schema_info[resource_identify].uri[uri_idx]);
+    u8 uri_suffix_len = cm_strlen(uri_suffix);
     mctp_memcpy_fast(rsp_dat->schema_uri, schema_uri_prefix, uri_prefix_len);
-    mctp_memcpy_fast(&(rsp_dat->schema_uri[uri_prefix_len]), &(schema_info[resource_identify].uri[uri_idx]), uri_suffix_len);
+    mctp_memcpy_fast(&(rsp_dat->schema_uri[uri_prefix_len]), uri_suffix, uri_suffix_len);
     rsp_dat->schema_uri[uri_prefix_len + uri_suffix_len] = '\0';
 
     *pkt_len += sizeof(pldm_redfish_get_schema_uri_rsp_dat_t) + uri_prefix_len + uri_suffix_len;
@@ -362,6 +406,7 @@ static void pldm_redfish_rde_operation_init(protocol_msg_t *pkt, int *pkt_len)
     pldm_redfish_rde_operation_init_req_dat_t *req_dat = (pldm_redfish_rde_operation_init_req_dat_t *)(pkt->req_buf);
     pldm_redfish_rde_operation_init_rsp_dat_t *rsp_dat = (pldm_redfish_rde_operation_init_rsp_dat_t *)(pkt->rsp_buf);
     pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->rsp_buf - sizeof(pldm_response_t));
+    pldm_redfish_schema_info_t schema_info;
 
     u8 resource_identify = 0xFF;
     if (gs_op_info.dev_status != OPERATION_INACTIVE) {
@@ -378,7 +423,8 @@ static void pldm_redfish_rde_operation_init(protocol_msg_t *pkt, int *pkt_len)
         rsp_hdr->cpl_code = PLDM_ERROR_NO_SUCH_RESOURCE;    // resource ID is not advertised by the device
         goto L_ERR;
     }
-    if (!(BIT(req_dat->op_type) & schema_info[resource_identify].allowed_op)) {      /* if operation not allowed for the requested resource (e.g. Update a RO resource). */
+    pldm_redfish_get_schema_info(resource_identify, &schema_info);
+    if (!(BIT(req_dat->op_type) & schema_info.allowed_op)) {      /* if operation not allowed for the requested resource (e.g. Update a RO resource). */
         rsp_hdr->cpl_code = PLDM_ERROR_NOT_ALLOWED;
         goto L_ERR;
     }
@@ -424,7 +470,7 @@ L_ERR:
     if (rsp_hdr->cpl_code == PLDM_ERROR_NOT_ALLOWED) {
         rsp_dat->permission_flg = 0;
     } else if (resource_identify != 0xFF) {
-        if (schema_info[resource_identify].allowed_op & (BIT(UPDATE) | BIT(REPLACE))) {
+        if (schema_info.allowed_op & (BIT(UPDATE) | BIT(REPLACE))) {
             rsp_dat->permission_flg |= (CBIT(1) | CBIT(2)); /* 10 0111, bit 0 and 5 are always set; bit 1 and 2 are set if update and replace operation are allowed */
         }
     }
@@ -456,6 +502,7 @@ static void pldm_redfish_supply_custom_request_parameters(protocol_msg_t *pkt, i
     pldm_redfish_supply_custom_request_parameters_req_dat_t *req_dat = (pldm_redfish_supply_custom_request_parameters_req_dat_t *)(pkt->req_buf);
     pldm_redfish_supply_custom_request_parameters_rsp_dat_t *rsp_dat = (pldm_redfish_supply_custom_request_parameters_rsp_dat_t *)(pkt->rsp_buf);
     pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->rsp_buf - sizeof(pldm_response_t));
+    pldm_redfish_schema_info_t schema_info;
 
     u8 resource_identify = resource_id_to_resource_identity(req_dat->op_identify.resource_id);
     if (resource_identify == 0xFF) {
@@ -555,7 +602,8 @@ L_ERR:
 
     rsp_dat->permission_flg = CBIT(0) | CBIT(5);
     if (resource_identify != 0xFF) {
-        if (schema_info[resource_identify].allowed_op & (BIT(UPDATE) | BIT(REPLACE))) {
+        pldm_redfish_get_schema_info(resource_identify, &schema_info);
+        if (schema_info.allowed_op & (BIT(UPDATE) | BIT(REPLACE))) {
             rsp_dat->permission_flg |= (CBIT(1) | CBIT(2));
         }
     }
@@ -611,6 +659,7 @@ static void pldm_redfish_rde_operation_status(protocol_msg_t *pkt, int *pkt_len)
     pldm_redfish_rde_operation_status_req_dat_t *req_dat = (pldm_redfish_rde_operation_status_req_dat_t *)(pkt->req_buf);
     pldm_redfish_rde_operation_status_rsp_dat_t *rsp_dat = (pldm_redfish_rde_operation_status_rsp_dat_t *)(pkt->rsp_buf);
     pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->rsp_buf - sizeof(pldm_response_t));
+    pldm_redfish_schema_info_t schema_info;
 
     u8 resource_identify = resource_id_to_resource_identity(req_dat->op_identify.resource_id);
     if (resource_identify == 0xFF) {
@@ -621,6 +670,8 @@ static void pldm_redfish_rde_operation_status(protocol_msg_t *pkt, int *pkt_len)
         rsp_hdr->cpl_code = PLDM_ERROR_UNEXPECTED;
         goto L_ERR;
     }
+
+    pldm_redfish_get_schema_info(resource_identify, &schema_info);
 
     rsp_dat->op_status = gs_op_info.dev_status;
     rsp_dat->cpl_time_sec = 0xFFFFFFFF;
@@ -663,7 +714,7 @@ static void pldm_redfish_rde_operation_status(protocol_msg_t *pkt, int *pkt_len)
 
     rsp_dat->permission_flg = CBIT(0) | CBIT(5);
     if (resource_identify != 0xFF) {
-        if (schema_info[resource_identify].allowed_op & (BIT(UPDATE) | BIT(REPLACE))) {
+        if (schema_info.allowed_op & (BIT(UPDATE) | BIT(REPLACE))) {
             rsp_dat->permission_flg |= (CBIT(1) | CBIT(2));
         }
     }
@@ -701,7 +752,7 @@ L_ERR:
     if (rsp_hdr->cpl_code == PLDM_ERROR_NO_SUCH_RESOURCE) {
         rsp_dat->permission_flg = 0;
     } else if (resource_identify != 0xFF) {
-        if (schema_info[resource_identify].allowed_op & (BIT(UPDATE) | BIT(REPLACE))) {
+        if (schema_info.allowed_op & (BIT(UPDATE) | BIT(REPLACE))) {
             rsp_dat->permission_flg |= (CBIT(1) | CBIT(2));
         }
     }
@@ -831,9 +882,7 @@ static void pldm_redfish_rde_multipart_receive(protocol_msg_t *pkt, int *pkt_len
     }
 
     if (req_dat->transfer_op == XFER_FIRST_PART) {
-        if (req_dat->op_id == 0) {                          // schema transfer
-            gs_op_buf.buf_ptr.data = &g_needed_dict[DICT_FMT_HDR_LEN];
-        } else {                                            // op result transfer
+        if (req_dat->op_id != 0) {   // op result transfer
             gs_op_buf.buf_ptr.data = gs_op_buf.op_result.data;
             gs_op_buf.buf_ptr.len = gs_op_buf.op_result.len;
         }
@@ -933,7 +982,7 @@ void pldm_redfish_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
 
 static void CM_FLASH_READ(u32 offset, u32 *buf, u32 size)
 {
-    FILE *fp = fopen("./build/pldm_redfish_dicts.bin", "r+b");
+    FILE *fp = fopen("./build/new_pldm_redfish_dicts.bin", "r+b");
     if (!fp) {
         LOG("CM_FLASH_READ open file err!");
         return;
@@ -962,12 +1011,77 @@ u32 pldm_redfish_resource_id_to_base(u32 resource_id)
     return resource_id;
 }
 
+static u16 pldm_redfish_get_dict_len(u32 base_resource_id, u8 requested_schemaclass)
+{
+    u16 len = 0;
+    if (base_resource_id != 0xFFFFFFFF) {
+        switch (base_resource_id) {
+            case PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID:
+                len = PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN;
+                break;
+            case PLDM_BASE_PCIE_DEV_RESOURCE_ID:
+                len = PLDM_REDFISH_PCIE_DEV_DICT_LEN;
+                break;
+            case PLDM_BASE_NETWORK_INTERFACE_RESOURCE_ID:
+                len = PLDM_REDFISH_NETWORK_INTERFACE_DICT_LEN;
+                break;
+            case PLDM_BASE_PORTS_RESOURCE_ID:
+                len = PLDM_REDFISH_PORTS_DICT_LEN;
+                break;
+            case PLDM_BASE_NETWORK_DEV_FUNCS_RESOURCE_ID:
+                len = PLDM_REDFISH_NETWORK_DEV_FUNCS_DICT_LEN;
+                break;
+            case PLDM_BASE_PCIE_FUNCS_RESOURCE_ID:
+                len = PLDM_REDFISH_PCIE_FUNCS_DICT_LEN;
+                break;
+            case PLDM_BASE_ETH_INTERFACE_COLLECTION_RESOURCE_ID:
+                len = PLDM_REDFISH_ETH_INTERFACE_COLLECTION_DICT_LEN;
+                break;
+            case PLDM_BASE_PORT_RESOURCE_ID:
+                len = PLDM_REDFISH_PORT_DICT_LEN;
+                break;
+            case PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID:
+                len = PLDM_REDFISH_NETWORK_DEV_FUNC_DICT_LEN;
+                break;
+            case PLDM_BASE_PCIE_FUNC_RESOURCE_ID:
+                len = PLDM_REDFISH_PCIE_FUNC_DICT_LEN;
+                break;
+            case PLDM_BASE_ETH_INTERFACE_RESOURCE_ID:
+                len = PLDM_REDFISH_ETH_INTERFACE_DICT_LEN;
+                break;
+            default:
+                LOG("err resource_id : %d", base_resource_id);
+                break;
+        }
+    } else {
+        switch (requested_schemaclass) {
+            case SCHEMACLASS_ANNOTATION:
+                len = PLDM_REDFISH_ANNO_DICT_LEN;
+                break;
+            case SCHEMACLASS_EVENT:
+                len = PLDM_REDFISH_EVENT_DICT_LEN;
+                break;
+            case SCHEMACLASS_REGISTRY:
+                len = PLDM_REDFISH_MSG_REGISTER_DICT_LEN;
+                break;
+            default:
+                LOG("err requested_schemaclass : %d", requested_schemaclass);
+                break;
+        }
+    }
+    return len;
+}
+
 // /* max dict is 8k, len is dw align */
 u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dict, u16 len)
 {
     if (!dict) return false;
     u32 dict_addr = 0;
     resource_id = pldm_redfish_resource_id_to_base(resource_id);
+
+    if (!len)
+        len = pldm_redfish_get_dict_len(resource_id, requested_schemaclass);
+
     pldm_redfish_dict_hdr_t *dict_info  = (pldm_redfish_dict_hdr_t *)g_dict_info;
     for (u8 i = 0; i < dict_info->num_of_dict; i++) {
         if ((resource_id == dict_info->dict_info[i].resource_id) && (BIT(requested_schemaclass) & dict_info->dict_info[i].schema_class)) {
@@ -983,54 +1097,6 @@ u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dic
         return false;
     }
     return true;
-}
-
-u16 pldm_redfish_get_dict_len(u32 resource_id)
-{
-    u16 len = 0;
-    resource_id = pldm_redfish_resource_id_to_base(resource_id);
-    u32 dict_resource_id[] = {
-        PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID,
-        PLDM_BASE_PCIE_DEV_RESOURCE_ID,
-        PLDM_BASE_NETWORK_INTERFACE_RESOURCE_ID,
-        PLDM_BASE_PORTS_RESOURCE_ID,
-        PLDM_BASE_NETWORK_DEV_FUNCS_RESOURCE_ID,
-        PLDM_BASE_PCIE_FUNCS_RESOURCE_ID,
-        PLDM_BASE_ETH_INTERFACE_COLLECTION_RESOURCE_ID,
-        PLDM_BASE_PORT_RESOURCE_ID,
-        PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID,
-        PLDM_BASE_PCIE_FUNC_RESOURCE_ID,
-        PLDM_BASE_ETH_INTERFACE_RESOURCE_ID,
-        PLDM_BASE_ANNOTATION_DICT_RESOURCE_ID,
-    };
-    u32 dict_len[] = {
-        PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN,
-        PLDM_REDFISH_PCIE_DEV_DICT_LEN,
-        PLDM_REDFISH_NETWORK_INTERFACE_DICT_LEN,
-        PLDM_REDFISH_PORTS_DICT_LEN,
-        PLDM_REDFISH_NETWORK_DEV_FUNCS_DICT_LEN,
-        PLDM_REDFISH_PCIE_FUNCS_DICT_LEN,
-        PLDM_REDFISH_ETH_INTERFACE_COLLECTION_DICT_LEN,
-        PLDM_REDFISH_PORT_DICT_LEN,
-        PLDM_REDFISH_NETWORK_DEV_FUNC_DICT_LEN,
-        PLDM_REDFISH_PCIE_FUNC_DICT_LEN,
-        PLDM_REDFISH_ETH_INTERFACE_DICT_LEN,
-        PLDM_REDFISH_ANNO_DICT_LEN,
-    };
-    u8 left = 0;
-    u8 right = sizeof(dict_resource_id) / sizeof(u32) - 1;
-    while (left <= right) {
-        u8 mid = (left + right) / 2;
-        if (dict_resource_id[mid] < resource_id) {
-            left = mid + 1;
-        } else if (dict_resource_id[mid] > resource_id) {
-            right = mid - 1;
-        } else {
-            len = dict_len[mid];
-            break;
-        }
-    }
-    return len;
 }
 
 void pldm_redfish_op_triggered(void)
@@ -1078,22 +1144,26 @@ void pldm_redfish_op(void)
         }
 
         resourse_indenty -= NETWORK_ADAPTER;
+        u8 bej_idx = resourse_indenty;
+
+        if (resourse_indenty > 6)
+            bej_idx += (resourse_indenty - 6) * (MAX_LAN_NUM - 1);
 
         u8 ret = pldm_redfish_get_dict_data(resource_id, SCHEMACLASS_MAJOR,\
-        g_needed_dict, pldm_redfish_get_dict_len(resource_id));
+        g_needed_dict, 0);
         if (ret == false) {
             err_code = -2;
             goto L_EXIT;
         }
 
-        if (g_resourse_bej[resourse_indenty + offset].is_bej) {
-            root = pldm_bej_decode(g_resourse_bej[resourse_indenty + offset].data, g_resourse_bej[resourse_indenty + offset].len, anno_dict, dict, root, 1);
+        if (g_resourse_bej[bej_idx + offset].is_bej) {
+            root = pldm_bej_decode(g_resourse_bej[bej_idx + offset].data, g_resourse_bej[bej_idx + offset].len, anno_dict, dict, root, 1);
         } else {
             root = g_schemas[resourse_indenty](resource_id);
             if (root) {
                 pldm_cjson_cal_sf_to_root(root, anno_dict, dict);
                 pldm_cjson_cal_len_to_root(root, OTHER_TYPE);
-                if (g_resourse_bej[resourse_indenty + offset].is_etag != 1)
+                if (g_resourse_bej[bej_idx + offset].is_etag != 1)
                     pldm_cjson_update_etag(root);
                 // pldm_cjson_printf_root(root);
             }
@@ -1150,8 +1220,8 @@ void pldm_redfish_op(void)
         if (gs_op_info.op_type == UPDATE || gs_op_info.op_type == REPLACE) {
             char *val = pldm_cjson_update_etag(root);
             if (val) {
-                g_resourse_bej[resourse_indenty + offset].is_etag = 1;
-                cm_memcpy(g_resourse_bej[resourse_indenty + offset].etag, val, 8);
+                g_resourse_bej[bej_idx + offset].is_etag = 1;
+                cm_memcpy(g_resourse_bej[bej_idx + offset].etag, val, 8);
             } else {
                 err_code = -8;
                 goto L_EXIT;
@@ -1183,9 +1253,9 @@ void pldm_redfish_op(void)
         // }
         if (root && gs_op_info.op_type != READ && gs_op_info.op_type != HEAD && gs_op_info.op_type != ACTION) {
             pldm_cjson_cal_len_to_root(root, OTHER_TYPE);
-            u8 *data_end_ptr = pldm_bej_encode(root, g_resourse_bej[resourse_indenty + offset].data);
-            g_resourse_bej[resourse_indenty + offset].is_bej = 1;
-            g_resourse_bej[resourse_indenty + offset].len = data_end_ptr - g_resourse_bej[resourse_indenty + offset].data;
+            u8 *data_end_ptr = pldm_bej_encode(root, g_resourse_bej[bej_idx + offset].data);
+            g_resourse_bej[bej_idx + offset].is_bej = 1;
+            g_resourse_bej[bej_idx + offset].len = data_end_ptr - g_resourse_bej[bej_idx + offset].data;
             // pldm_cjson_delete_node(root);
             root = NULL;
         }

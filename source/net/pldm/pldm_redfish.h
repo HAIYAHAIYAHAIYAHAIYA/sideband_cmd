@@ -62,20 +62,35 @@
 
 #define DICT_FMT_HDR_LEN                                    (sizeof(pldm_redfish_dict_fmt_t))
 
-#define PLDM_REDFISH_ANNO_DICT_LEN                          (2560)      /* 2551 */
-#define PLDM_REDFISH_ETH_INTERFACE_COLLECTION_DICT_LEN      (164)
-#define PLDM_REDFISH_ETH_INTERFACE_DICT_LEN                 (3068)
-#define PLDM_REDFISH_EVENT_DICT_LEN                         (1084)      /* 1075 */
-#define PLDM_REDFISH_MSG_REGISTER_DICT_LEN                  (276)       /* 268 */
-#define PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN               (4072)
-#define PLDM_REDFISH_NETWORK_DEV_FUNCS_DICT_LEN             (168)
-#define PLDM_REDFISH_NETWORK_DEV_FUNC_DICT_LEN              (3432)
-#define PLDM_REDFISH_NETWORK_INTERFACE_DICT_LEN             (872)
-#define PLDM_REDFISH_PCIE_FUNCS_DICT_LEN                    (156)
-#define PLDM_REDFISH_PCIE_DEV_DICT_LEN                      (4244)
-#define PLDM_REDFISH_PCIE_FUNC_DICT_LEN                     (1944)
-#define PLDM_REDFISH_PORTS_DICT_LEN                         (148)
-#define PLDM_REDFISH_PORT_DICT_LEN                          (8076)
+// #define PLDM_REDFISH_ANNO_DICT_LEN                          (2560)      /* 2551 */
+// #define PLDM_REDFISH_ETH_INTERFACE_COLLECTION_DICT_LEN      (164)
+// #define PLDM_REDFISH_ETH_INTERFACE_DICT_LEN                 (3068)
+// #define PLDM_REDFISH_EVENT_DICT_LEN                         (1084)      /* 1075 */
+// #define PLDM_REDFISH_MSG_REGISTER_DICT_LEN                  (276)       /* 268 */
+// #define PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN               (4072)
+// #define PLDM_REDFISH_NETWORK_DEV_FUNCS_DICT_LEN             (168)
+// #define PLDM_REDFISH_NETWORK_DEV_FUNC_DICT_LEN              (3432)
+// #define PLDM_REDFISH_NETWORK_INTERFACE_DICT_LEN             (872)
+// #define PLDM_REDFISH_PCIE_FUNCS_DICT_LEN                    (156)
+// #define PLDM_REDFISH_PCIE_DEV_DICT_LEN                      (4244)
+// #define PLDM_REDFISH_PCIE_FUNC_DICT_LEN                     (1944)
+// #define PLDM_REDFISH_PORTS_DICT_LEN                         (148)
+// #define PLDM_REDFISH_PORT_DICT_LEN                          (8076)
+
+#define PLDM_REDFISH_ANNO_DICT_LEN                          (2560)
+#define PLDM_REDFISH_ETH_INTERFACE_COLLECTION_DICT_LEN      (128)
+#define PLDM_REDFISH_ETH_INTERFACE_DICT_LEN                 (544)
+#define PLDM_REDFISH_EVENT_DICT_LEN                         (1084)
+#define PLDM_REDFISH_MSG_REGISTER_DICT_LEN                  (276)
+#define PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN               (1156)
+#define PLDM_REDFISH_NETWORK_DEV_FUNCS_DICT_LEN             (132)
+#define PLDM_REDFISH_NETWORK_DEV_FUNC_DICT_LEN              (944)
+#define PLDM_REDFISH_NETWORK_INTERFACE_DICT_LEN             (420)
+#define PLDM_REDFISH_PCIE_FUNCS_DICT_LEN                    (124)
+#define PLDM_REDFISH_PCIE_DEV_DICT_LEN                      (740)
+#define PLDM_REDFISH_PCIE_FUNC_DICT_LEN                     (544)
+#define PLDM_REDFISH_PORTS_DICT_LEN                         (116)
+#define PLDM_REDFISH_PORT_DICT_LEN                          (1144)
 
 typedef u16                                                 rdeopid;
 typedef u8                                                  schemaclass;
@@ -434,8 +449,11 @@ typedef struct {
 typedef struct {
     u8 schema_class;
     u8 allowed_op;
-    char uri[2][39];
 } pldm_redfish_schema_info_t;
+
+typedef struct {
+    char *uri[2];
+} pldm_redfish_schema_uri_t;
 
 typedef struct {
     u16 len;
@@ -532,5 +550,7 @@ void pldm_redfish_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code);
 u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dict, u16 len);
 u32 pldm_redfish_resource_id_to_base(u32 resource_id);
 void pldm_redfish_op(void);
+
+void pldm_redfish_get_schema_uri_suffix(u8 identify, char *uri, u8 idx);
 
 #endif /* __PLDM_REDFISH_H__ */

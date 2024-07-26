@@ -9,32 +9,14 @@
 
 static u32 *pdrs_pool;
 static u32 pdrs_pool_wt;
+static char *proposed_containing_resource_name;
+static char *sub_uri;
+static char *major_schema_name;
 
-pldm_temp_sensor_threshold_data_t temp_sensors_threshold[NIC_TEMP_SENSOR + NC_TEMP_SENSOR + PLUG_TEMP_SENSOR][4] = {
-    /* warning_high | critical_high | fatal_high */
-    [NIC_TEMP_SENSOR] = {
-        [0] = {0, 0, 0},
-    },
-    [NC_TEMP_SENSOR] = {
-        [0] = {0, 0, 0},
-    },
-    [PLUG_TEMP_SENSOR] = {
-        [0] = {0, 0, 0},
-        [1] = {0, 0, 0},
-        [2] = {0, 0, 0},
-        [3] = {0, 0, 0}
-    }
-};
+void pldm_get_link_spd_cap(pldm_speed_sensor_cap_t *speed_data, u8 port);
+void pldm_get_temp_sensor_threshold(pldm_temp_sensor_threshold_data_t *temp_data, u8 sensor_type, u8 port);
 
-pldm_speed_sensor_cap_t link_speed_sensors_cap[PLDM_LINK_SPEED_SENSOR_NUM] = {
-    /* max_readable | min_readable */
-    [0] = {0, 0},
-    [1] = {0, 0},
-    [2] = {0, 0},
-    [3] = {0, 0}
-};
-
-pldm_temp_sensor_data_struct_t temp_sensors[NIC_TEMP_SENSOR + NC_TEMP_SENSOR + PLUG_TEMP_SENSOR][4] = {
+pldm_temp_sensor_data_struct_t temp_sensors[3][4] = {
     [NIC_TEMP_SENSOR] = {
         /* op_state | previous_op_state | event_msg_en | entity type | sensor id | sensor event class | present val | previous val | data size | present reading */
         [0] = {PLDM_OP_ENABLE, PLDM_OP_ENABLE, PLDM_EVENT_EN, NIC_SENSOR, PLDM_BASE_NIC_TEMP_SENSOR_ID + 0, PLDM_NUMERIC_SENSOR_STATE, NORMAL, NORMAL, PLDM_DATASIZE_UINT8, 0}
@@ -120,7 +102,6 @@ pldm_temp_sensor_monitor_t temp_sensor_monitor[PLDM_NIC_TEMP_SENSOR_NUM + PLDM_N
 
 extern mctp_base_info g_mctp_ctrl_info[3];
 extern pldm_monitor_base_info_t g_pldm_monitor_info;
-extern u8 g_dict_info[PLDM_REDFISH_DICT_INFO_LEN];
 
 extern int is_temp_sensor(u16 sensor_id);
 
@@ -136,8 +117,7 @@ void pdrs_pool_init(u32 *addr)
 
 void *pdr_malloc(int size)
 {
-    size = ALIGN(size, PDR_MIN_SIZE);
-    if (pdrs_pool_wt + size >= PDR_POOL_SIZE) {
+    if (pdrs_pool_wt + size >= PDR_POOL_SIZE || !pdrs_pool) {
         LOG( "pdr_malloc failed");
         return NULL;
     }
@@ -147,6 +127,12 @@ void *pdr_malloc(int size)
     cm_memset((void *)pt, 0, size);
 
     return pt;
+}
+
+u32 pldm_pdr_get_used(void)
+{
+    LOG("used space : %d, %d", ALIGN(pdrs_pool_wt, 128), pdrs_pool_wt);
+    return pdrs_pool_wt;
 }
 
 int pldm_pdr_cmp(pldm_pdr_record_t *out, pldm_pdr_record_t *elt)
@@ -186,6 +172,7 @@ void pldm_pdr_init(pldm_pdr_t *repo)
 
 int pldm_pdr_add(pldm_pdr_t *repo, u8 *pdr_data, u32 pdr_size, u32 record_handle)
 {
+    int ret = -1;
     if (!repo || !pdr_data) goto L_RET;
 
     pldm_pdr_record_t *add_pdr = (pldm_pdr_record_t *)pdr_malloc(sizeof(pldm_pdr_record_t));
@@ -200,25 +187,27 @@ int pldm_pdr_add(pldm_pdr_t *repo, u8 *pdr_data, u32 pdr_size, u32 record_handle
     ++repo->record_count;
     repo->size += add_pdr->size;
     repo->largest_pdr_size = ALIGN(MAX(repo->largest_pdr_size, pdr_size), 64);
+    ret = 0;
 
 L_RET:
-    return -1;
+    return ret;
 }
 
-int pldm_pdr_delete(pldm_pdr_t *repo, u32 record_handle)
+static u32 pldm_largest_pdrsize_get(pldm_pdr_t *repo)
 {
-    if (!repo || !(repo->head)) return -1;
-    pldm_pdr_record_t *out = NULL;
-    pldm_pdr_record_t elt;
-    elt.record_handle = record_handle;
-    LL_SEARCH(repo->head, out, &elt, pldm_pdr_cmp);
-    if (out) {
-        LL_DELETE(repo->head, out);
-        LL_APPEND(repo->is_deleted_head, out);
-        repo->size -= out->size;
-        --repo->record_count;
+    if (!repo || !(repo->head))
+        return 0;
+
+    u32 largets_pdr_size = 0;
+    pldm_pdr_record_t *pdr = repo->head;
+    for (int i = 0; i < repo->record_count; i++) {
+        if (largets_pdr_size <= pdr->size) {
+            largets_pdr_size = pdr->size;
+            pdr = pdr->next;
+        }
     }
-    return out ? 0 : -1;
+    largets_pdr_size = ALIGN(largets_pdr_size, 64);
+    return largets_pdr_size;
 }
 
 pldm_pdr_record_t *pldm_pdr_find(pldm_pdr_t *repo, u32 record_handle)
@@ -234,6 +223,21 @@ pldm_pdr_record_t *pldm_pdr_find(pldm_pdr_t *repo, u32 record_handle)
     return out ? out : NULL;
 }
 
+int pldm_pdr_delete(pldm_pdr_t *repo, u32 record_handle)
+{
+    pldm_pdr_record_t *out = pldm_pdr_find(repo, record_handle);
+    if (out) {
+        /* clear record_change_num if pdr is deleted. */
+        pldm_pdr_hdr_t *pdr_hdr = (pldm_pdr_hdr_t *)(out->data);
+        pdr_hdr->record_change_num = 0;
+        LL_DELETE(repo->head, out);
+        LL_APPEND(repo->is_deleted_head, out);
+        repo->size -= out->size;
+        repo->largest_pdr_size = pldm_largest_pdrsize_get(repo);
+        --repo->record_count;
+    }
+    return out ? 0 : -1;
+}
 pldm_pdr_record_t *pldm_pdr_is_exist(pldm_pdr_t *repo, u32 record_handle)
 {
     if (!repo || record_handle == PLDM_ERR_RECORD_HANDLE) {
@@ -253,6 +257,7 @@ pldm_pdr_record_t *pldm_pdr_is_exist(pldm_pdr_t *repo, u32 record_handle)
         if (out) {
             LL_DELETE(repo->is_deleted_head, out);
             LL_INSERT_INORDER(repo->head, out, pldm_pdr_cmp);
+            repo->largest_pdr_size = pldm_largest_pdrsize_get(repo);
             repo->size += out->size;
             ++repo->record_count;
             pldm_pdr_chg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_REPO_CHG_FORMAT_ID_PDR_HANDLE, PLDM_REPO_CHG_RECORDS_ADDED, out->record_handle);
@@ -304,6 +309,9 @@ static int fill_common_thermal_sensor_pdr(void *buf, u16 sensor_id, u16 entity_t
         sensor_type = PLUG_TEMP_SENSOR;
     }
 
+    pldm_temp_sensor_threshold_data_t temp_data;
+    pldm_get_temp_sensor_threshold(&temp_data, sensor_type, port);
+
     // thermal_pdr->numeric_pdr_comm_part.sensor_init = NO_INIT;
     thermal_pdr->numeric_pdr_comm_part.sensor_auxiliary_names_pdr = FALSE;
     thermal_pdr->numeric_pdr_comm_part.base_unit = DEGREES_C;
@@ -335,11 +343,11 @@ static int fill_common_thermal_sensor_pdr(void *buf, u16 sensor_id, u16 entity_t
     thermal_pdr->thermal_pdr.nominal_value = 127;
     // thermal_pdr->thermal_pdr.normal_min = 0x00;
 
-    thermal_pdr->thermal_pdr.warning_high = temp_sensors_threshold[sensor_type][port].warning_high;
+    thermal_pdr->thermal_pdr.warning_high = temp_data.warning_high;
     // thermal_pdr->thermal_pdr.warning_low = 0x00;
-    thermal_pdr->thermal_pdr.critical_high = temp_sensors_threshold[sensor_type][port].critical_high;
+    thermal_pdr->thermal_pdr.critical_high = temp_data.critical_high;
     // thermal_pdr->thermal_pdr.critical_low = 0x00;
-    thermal_pdr->thermal_pdr.fatal_high = temp_sensors_threshold[sensor_type][port].fatal_high;
+    thermal_pdr->thermal_pdr.fatal_high = temp_data.fatal_high;
     // thermal_pdr->thermal_pdr.fatal_low = 0x00;
     return SUCCESS;
 }
@@ -377,7 +385,7 @@ static int fill_common_pluggable_module_power_sensor_pdr(void *buf, u16 sensor_i
     // pluggable_power_pdr->numeric_pdr_comm_part.aux_oem_unit_handle = 0x00;
     pluggable_power_pdr->numeric_pdr_comm_part.is_linear = TRUE;
     pluggable_power_pdr->numeric_pdr_comm_part.sensor_data_size = sensor_datasize;
-    pluggable_power_pdr->numeric_pdr_comm_part.resolution.val = 0x33D6BF94;                  /* 0.0000001 */
+    pluggable_power_pdr->numeric_pdr_comm_part.resolution.val = 0x3A83126E;                  /* 0.0000001 */
     // pluggable_power_pdr->numeric_pdr_comm_part.offset = 0x00;
     // pluggable_power_pdr->numeric_pdr_comm_part.accuracy = 0x00;
     pluggable_power_pdr->numeric_pdr_comm_part.plus_tolerace = 0x03;
@@ -447,7 +455,8 @@ static int fill_common_link_speed_sensor_pdr(void *buf, u16 sensor_id, u16 entit
     link_speed_pdr->state_transition_interval.val = 0x3DCCCCCC;               /* 100 ms - an upper limit on the firmware reaction time */
     link_speed_pdr->update_interval.val = 0x3D4CCCCC;                         /* 50 ms - upper limit on the time from interrupt to event message */
     u8 port = link_speed_pdr->numeric_pdr_comm_part.container.entity_instance_num - 1;
-    link_speed_pdr->max_readable = link_speed_sensors_cap[port].max_readable; /* The maximum speed supported by the media in Mb/s */
+    pldm_get_link_spd_cap((pldm_speed_sensor_cap_t *)&(link_speed_pdr->max_readable), port);
+    // link_speed_pdr->max_readable = ;                                          /* The maximum speed supported by the media in Mb/s */
     // link_speed_pdr->min_readable = 0x00;                                   /* returned when link is down */
     link_speed_pdr->range_field_format = 0x04;                                /* uint32 */
     link_speed_pdr->range_field_support = BIT(NORMAL_VAL);
@@ -538,7 +547,7 @@ static pldm_composite_state_sensor_pdr_t *composite_state_pdr_create_sensor(pldm
     composite_state_pdr->hdr.version = PLDM_EVENT_FORMAT_VERSION;
     composite_state_pdr->hdr.type = STATE_SENSOR_PDR;
     composite_state_pdr->hdr.record_change_num = 0;
-    composite_state_pdr->hdr.length = sizeof(pldm_pdr_entity_assoc_t) - sizeof(pldm_pdr_hdr_t);
+    composite_state_pdr->hdr.length = sizeof(pldm_composite_state_sensor_pdr_t) - sizeof(pldm_pdr_hdr_t);
 
     composite_state_pdr->terminus_handle = PLDM_TERMINUS_HANDLE;
     composite_state_pdr->sensor_id = sensor_id;
@@ -611,19 +620,25 @@ static void pldm_add_state_sensor_pdr(u8 subsensor_count, u8 sensor_num, u16 ent
         u32 record_handle = sensor_id_convert_to_record_handle(datastruct->sensor_id + i);
         if (record_handle == PLDM_ERR_RECORD_HANDLE) continue;
         pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), record_handle);
-        if (is_exist) continue;
+        if (is_exist) {
+            goto L_OUT;
+        }
 
         composite_state_sensor_pdr = composite_state_pdr_create_sensor(&composite_state_sensor, datastruct->sensor_id + i, subsensor_count);
         if (!composite_state_sensor_pdr) return;
 
         for (int j = 0; j < subsensor_count; j++) {
-            add_sensor.state_setid = is_plug_sensor ? datastruct[i * subsensor_count + j].sensor_type : datastruct[j].sensor_type;
+            add_sensor.state_setid = datastruct[i * subsensor_count * is_plug_sensor + j].sensor_type;
             add_sensor.possible_states_size = 1;
             add_sensor.possible_states = possible_states_generate(add_sensor.state_setid);
             composite_state_sensor_pdr = composite_state_pdr_add_sensor(composite_state_sensor_pdr, &add_sensor);
         }
-        pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), (u8 *)composite_state_sensor_pdr, sizeof(pldm_composite_state_sensor_pdr_t) + \
+        int ret = pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), (u8 *)composite_state_sensor_pdr, sizeof(pldm_composite_state_sensor_pdr_t) + \
         subsensor_count * sizeof(pldm_composite_sensor_attr_t), composite_state_sensor_pdr->hdr.record_handle);
+        if (ret == 0)
+            pldm_pdr_chg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_REPO_CHG_FORMAT_ID_PDR_HANDLE, PLDM_REPO_CHG_RECORDS_ADDED, record_handle);
+L_OUT:
+        pldm_sensor_event_generate(g_pldm_monitor_info.pldm_event_rbuf, datastruct->sensor_event_class, datastruct->event_msg_en, datastruct);
     }
 }
 
@@ -638,9 +653,13 @@ static void pldm_add_numeric_sensor_pdr(u8 data_size, pldm_data_struct_t *sensor
         record_handle = sensor_id_convert_to_record_handle(sensor_id);
         if (record_handle == PLDM_ERR_RECORD_HANDLE) return;
         pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), record_handle);
-        if (is_exist) return;
+        void *buf = NULL;
+        if (is_exist) {
+            buf = is_exist->data;
+        } else {
+            buf = pdr_malloc(data_size);
+        }
 
-        void *buf = pdr_malloc(data_size);
         if (!buf) {
             LOG("no more space for malloc!, %s", __FUNCTION__);
             return;
@@ -653,11 +672,13 @@ static void pldm_add_numeric_sensor_pdr(u8 data_size, pldm_data_struct_t *sensor
             temp_sensor_monitor_handle(sensor_id, (u32 *)buf);
         }
 
-        pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), (u8 *)buf, data_size, record_handle);
-
+        if (!is_exist) {
+            int ret = pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), (u8 *)buf, data_size, record_handle);
+            if (ret == 0)
+                pldm_pdr_chg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_REPO_CHG_FORMAT_ID_PDR_HANDLE, PLDM_REPO_CHG_RECORDS_ADDED, record_handle);
+        }
         pldm_sensor_event_generate(g_pldm_monitor_info.pldm_event_rbuf, sensor_datastruct->sensor_event_class, sensor_datastruct->event_msg_en, \
         sensor_datastruct);
-        pldm_pdr_chg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_REPO_CHG_FORMAT_ID_PDR_HANDLE, PLDM_REPO_CHG_RECORDS_ADDED, record_handle);
 
     }
 }
@@ -670,7 +691,7 @@ static void pldm_delete_numeric_sensor_pdr(pldm_data_struct_t *sensor_datastruct
 
         u16 sensor_id = sensor_datastruct->sensor_id;
         record_handle = sensor_id_convert_to_record_handle(sensor_id);
-
+        if (record_handle == PLDM_ERR_RECORD_HANDLE) return;
         int ret = pldm_pdr_delete(&(g_pldm_monitor_info.pldm_repo), record_handle);
         if (ret != 0) {
             LOG("ERR SENSOR ID : %d", sensor_id);
@@ -680,6 +701,7 @@ static void pldm_delete_numeric_sensor_pdr(pldm_data_struct_t *sensor_datastruct
         if (is_temp_sensor(sensor_id) != -1) {
             temp_sensor_monitor_handle(sensor_id, NULL);
         }
+
         pldm_sensor_event_generate(g_pldm_monitor_info.pldm_event_rbuf, sensor_datastruct->sensor_event_class, sensor_datastruct->event_msg_en, \
         sensor_datastruct);
         pldm_pdr_chg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_REPO_CHG_FORMAT_ID_PDR_HANDLE, PLDM_REPO_CHG_RECORDS_DELETED, record_handle);
@@ -701,8 +723,9 @@ static void pldm_add_assoc_pdr(pldm_entity_t *container, pldm_entity_t *containe
         assoc_pdr = assoc_pdr_add_contained(assoc_pdr, &contained[i], i);
     }
     assoc_pdr->hdr.record_change_num = 0;
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), (u8 *)assoc_pdr, sizeof(pldm_pdr_entity_assoc_t) + contained_cnt * sizeof(pldm_entity_t), assoc_pdr->hdr.record_handle);
-    pldm_pdr_chg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_REPO_CHG_FORMAT_ID_PDR_HANDLE, PLDM_REPO_CHG_RECORDS_ADDED, assoc_pdr->hdr.record_handle);
+    int ret = pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), (u8 *)assoc_pdr, sizeof(pldm_pdr_entity_assoc_t) + contained_cnt * sizeof(pldm_entity_t), assoc_pdr->hdr.record_handle);
+    if (ret == 0)
+        pldm_pdr_chg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_REPO_CHG_FORMAT_ID_PDR_HANDLE, PLDM_REPO_CHG_RECORDS_ADDED, assoc_pdr->hdr.record_handle);
 }
 
 static void pldm_delete_assoc_pdr(u32 assoc_record_handle)
@@ -756,31 +779,31 @@ static u8 *pldm_redfish_resource_pdr_fill_middle0_part(u8 *middle0_part_pdr, cha
 {
     if (!middle0_part_pdr || !sub_uri) return NULL;
     pldm_redfish_resource_pdr_middle0_part_t *middle0_part = (pldm_redfish_resource_pdr_middle0_part_t *)middle0_part_pdr;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    middle0_part->suburi_byte_len = sub_uri_len;
-    cm_memcpy(middle0_part->suburi, sub_uri, sub_uri_len);
-    u8 *next_part = (u8 *)&(middle0_part->suburi[sub_uri_len]);
+    middle0_part->suburi_byte_len = cm_strlen(sub_uri) + 1;
+    cm_memcpy(middle0_part->suburi, sub_uri, middle0_part->suburi_byte_len);
+    u8 *next_part = (u8 *)&(middle0_part->suburi[middle0_part->suburi_byte_len]);
     return next_part;
 }
 
-static u8 *pldm_redfish_resource_pdr_fill_middle1_part(u8 *middle1_part_pdr, u16 add_resource_id_cnt, pldm_redfish_add_info_t *resource_info, char *add_suburi)
+static u8 *pldm_redfish_resource_pdr_fill_middle1_part(u8 *middle1_part_pdr, u16 add_resource_id_cnt, void *add_info, void *add_suburi)
 {
-    if (!middle1_part_pdr || !resource_info || !add_suburi) return NULL;
+    if (!middle1_part_pdr) return NULL;
+    pldm_redfish_add_info_t *resource_info = (pldm_redfish_add_info_t *)add_info;
     pldm_redfish_resource_pdr_middle1_part_t *middle1_part = (pldm_redfish_resource_pdr_middle1_part_t *)middle1_part_pdr;
     middle1_part->add_resource_id_cnt = add_resource_id_cnt;
     pldm_redfish_add_resource_info_t *ptr = (pldm_redfish_add_resource_info_t *)(middle1_part->add_resource_info);
     u8 offset = sizeof(pldm_redfish_resource_pdr_middle1_part_t);
-    char *suburi_ptr = add_suburi;
-    for (u8 i = 0; i < middle1_part->add_resource_id_cnt; i++) {
+    char *suburi_ptr = (char *)add_suburi;
+    for (u16 i = 0; i < add_resource_id_cnt; i++) {
         ptr->add_resource_id = resource_info[i].add_resource_id;
         ptr->add_suburi_byte_len = resource_info[i].add_suburi_byte_len;
         cm_memcpy(ptr->add_suburi, suburi_ptr, ptr->add_suburi_byte_len);
         suburi_ptr += ptr->add_suburi_byte_len;
-        offset += sizeof(pldm_redfish_add_info_t) + ptr->add_suburi_byte_len;
+        offset += (sizeof(pldm_redfish_add_info_t) + ptr->add_suburi_byte_len);
         ptr = (pldm_redfish_add_resource_info_t *)&(ptr->add_suburi[ptr->add_suburi_byte_len]);
     }
 
-    u8 *next_part = (u8 *)middle1_part_pdr + offset;
+    u8 *next_part = middle1_part_pdr + offset;
     return next_part;
 }
 
@@ -817,118 +840,74 @@ static void pldm_redfish_resource_pdr_fill_end_part(u8 *end_part_pdr, u16 oem_cn
     end_part->oem_cnt = oem_cnt;    /* currently not support oem. */
 }
 
-static void pldm_redfish_add_network_adapter_pdr(void)
+static void pldm_redfish_resource_pdr_fill(u8 *buf, u8 malloc_len, u32 record_handle, u32 resource_id, u8 resource_flg, u32 containing_resource_id, u16 add_resource_id_cnt, void *add_info, void *add_suburi)
 {
-    pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_NETWORK_ADAPTER_PDR_HANDLE);
-    if (is_exist) return;
+    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, record_handle, resource_id, resource_flg, containing_resource_id, proposed_containing_resource_name);
+    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
+    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, add_resource_id_cnt, add_info, add_suburi);
+    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, resource_id, SCHEMACLASS_MAJOR, major_schema_name);
+    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
+    if (!next_part)
+        return ;
+    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, record_handle);
+}
 
-    char *proposed_containing_resource_name = "NetworkAdapterCollection.NetworkAdapterCollection";
-    char *sub_uri = "";
-    char *major_schema_name = "NetworkAdapter.NetworkAdapter";
+static u8 pldm_redfish_pdr_malloc_size_get(void)
+{
+    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN;
+    malloc_len += cm_strlen(proposed_containing_resource_name) + sizeof(u8);
+    malloc_len += cm_strlen(sub_uri) + sizeof(u8);
+    malloc_len += cm_strlen(major_schema_name) + sizeof(u8);
 
-    u8 proposed_containing_resource_name_len = cm_strlen(proposed_containing_resource_name) + 1;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
+    return malloc_len;
+}
 
-    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN + proposed_containing_resource_name_len + \
-    sub_uri_len + major_schema_name_len;
+static int pldm_redfish_pdr_add(u32 record_handle, u32 resource_id, u8 resource_flg, u32 containing_resource_id)
+{
+    pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), record_handle);
+    if (is_exist)
+        return -1;
+
+    u8 malloc_len = pldm_redfish_pdr_malloc_size_get();
     u8 *buf = (u8 *)pdr_malloc(malloc_len);
     if (!buf) {
-        return;
+        return -1;
     }
+    pldm_redfish_resource_pdr_fill(buf, malloc_len, record_handle, resource_id, resource_flg, containing_resource_id, 0, NULL, NULL);
 
-    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, PLDM_NETWORK_ADAPTER_PDR_HANDLE, PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID, \
-    CBIT(0), PLDM_REDFISH_EXTERNAL, proposed_containing_resource_name);
-    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
-    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID, SCHEMACLASS_MAJOR, major_schema_name);
-    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_NETWORK_ADAPTER_PDR_HANDLE);
+    return 0;
+}
+
+static void pldm_redfish_add_network_adapter_pdr(void)
+{
+    proposed_containing_resource_name = "NetworkAdapterCollection.NetworkAdapterCollection";
+    sub_uri = "";
+    major_schema_name = "NetworkAdapter.NetworkAdapter";
+    pldm_redfish_pdr_add(PLDM_NETWORK_ADAPTER_PDR_HANDLE, PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID, CBIT(0), PLDM_REDFISH_EXTERNAL);
 }
 
 static void pldm_redfish_add_network_interface_pdr(void)
 {
-    pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_NETWORK_INTERFACE_PDR_HANDLE);
-    if (is_exist) return;
-
-    char *proposed_containing_resource_name = "NetworkInterfaceCollection.NetworkInterfaceCollection";
-    char *sub_uri = "";
-    char *major_schema_name = "NetworkInterface.NetworkInterface";
-
-    u8 proposed_containing_resource_name_len = cm_strlen(proposed_containing_resource_name) + 1;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
-
-    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN + proposed_containing_resource_name_len + \
-    sub_uri_len + major_schema_name_len;
-    u8 *buf = (u8 *)pdr_malloc(malloc_len);
-    if (!buf) {
-        return;
-    }
-    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, PLDM_NETWORK_INTERFACE_PDR_HANDLE, PLDM_BASE_NETWORK_INTERFACE_RESOURCE_ID, \
-    CBIT(0), PLDM_REDFISH_EXTERNAL, proposed_containing_resource_name);
-    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
-    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_INTERFACE_RESOURCE_ID, SCHEMACLASS_MAJOR, major_schema_name);
-    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_NETWORK_INTERFACE_PDR_HANDLE);
+    proposed_containing_resource_name = "NetworkInterfaceCollection.NetworkInterfaceCollection";
+    sub_uri = "";
+    major_schema_name = "NetworkInterface.NetworkInterface";
+    pldm_redfish_pdr_add(PLDM_NETWORK_INTERFACE_PDR_HANDLE, PLDM_BASE_NETWORK_INTERFACE_RESOURCE_ID, CBIT(0), PLDM_REDFISH_EXTERNAL);
 }
 
 static void pldm_redfish_add_ports_pdr(void)
 {
-    pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_PORTS_PDR_HANDLE);
-    if (is_exist) return;
-
-    char *proposed_containing_resource_name = "";
-    char *sub_uri = "Ports";
-    char *major_schema_name = "PortCollection.PortCollection";
-
-    u8 proposed_containing_resource_name_len = cm_strlen(proposed_containing_resource_name) + 1;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
-
-    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN + proposed_containing_resource_name_len + \
-    sub_uri_len + major_schema_name_len;
-    u8 *buf = (u8 *)pdr_malloc(malloc_len);
-    if (!buf) {
-        return;
-    }
-    /* no ContainingResourceID ? E810 */
-    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, PLDM_PORTS_PDR_HANDLE, PLDM_BASE_PORTS_RESOURCE_ID, \
-    CBIT(2), PLDM_REDFISH_EXTERNAL, proposed_containing_resource_name);
-    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
-    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PORTS_RESOURCE_ID, SCHEMACLASS_MAJOR, major_schema_name);
-    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_PORTS_PDR_HANDLE);
+    proposed_containing_resource_name = "";
+    sub_uri = "Ports";
+    major_schema_name = "PortCollection.PortCollection";
+    pldm_redfish_pdr_add(PLDM_PORTS_PDR_HANDLE, PLDM_BASE_PORTS_RESOURCE_ID, CBIT(2), PLDM_REDFISH_EXTERNAL);
 }
 
 static void pldm_redfish_add_network_dev_funcs_pdr(void)
 {
-    pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_NETWORK_DEV_FUNCS_PDR_HANDLE);
-    if (is_exist) return;
-
-    char *proposed_containing_resource_name = "";
-    char *sub_uri = "NetworkDeviceFunctions";
-    char *major_schema_name = "NetworkDeviceFunctionCollection.NetworkDeviceFunctionCollection";
-
-    u8 proposed_containing_resource_name_len = cm_strlen(proposed_containing_resource_name) + 1;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
-
-    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN + proposed_containing_resource_name_len + \
-    sub_uri_len + major_schema_name_len;
-    u8 *buf = (u8 *)pdr_malloc(malloc_len);
-    if (!buf) {
-        return;
-    }
-    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, PLDM_NETWORK_DEV_FUNCS_PDR_HANDLE, PLDM_BASE_NETWORK_DEV_FUNCS_RESOURCE_ID, \
-    CBIT(2), PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID, proposed_containing_resource_name);
-    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
-    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_DEV_FUNCS_RESOURCE_ID, SCHEMACLASS_MAJOR, major_schema_name);
-    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_NETWORK_DEV_FUNCS_PDR_HANDLE);
+    proposed_containing_resource_name = "";
+    sub_uri = "NetworkDeviceFunctions";
+    major_schema_name = "NetworkDeviceFunctionCollection.NetworkDeviceFunctionCollection";
+    pldm_redfish_pdr_add(PLDM_NETWORK_DEV_FUNCS_PDR_HANDLE, PLDM_BASE_NETWORK_DEV_FUNCS_RESOURCE_ID, CBIT(2), PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID);
 }
 
 static void pldm_redfish_add_port_pdr(void)
@@ -936,18 +915,13 @@ static void pldm_redfish_add_port_pdr(void)
     pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_PORT_PDR_HANDLE);
     if (is_exist) return;
 
-    char *proposed_containing_resource_name = "";
-    char *sub_uri = "0";
-    char *major_schema_name = "Port.Port";
+    proposed_containing_resource_name = "";
+    sub_uri = "0";
+    major_schema_name = "Port.Port";
+
     pldm_redfish_add_info_t add_info[MAX_LAN_NUM];
     char add_suburi[MAX_LAN_NUM][2];
-
-    u8 proposed_containing_resource_name_len = cm_strlen(proposed_containing_resource_name) + 1;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
-
-    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN + proposed_containing_resource_name_len + \
-    sub_uri_len + major_schema_name_len + sizeof(add_suburi) + sizeof(add_info);
+    u8 malloc_len = pldm_redfish_pdr_malloc_size_get() + sizeof(add_suburi) + sizeof(add_info);
     u8 *buf = (u8 *)pdr_malloc(malloc_len);
     if (!buf) {
         return;
@@ -961,13 +935,7 @@ static void pldm_redfish_add_port_pdr(void)
     }
 
     /* no ContainingResourceID ? E810 */
-    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, PLDM_PORT_PDR_HANDLE, PLDM_BASE_PORT_RESOURCE_ID, \
-    CBIT(1), PLDM_REDFISH_EXTERNAL, proposed_containing_resource_name);
-    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
-    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, MAX_LAN_NUM, add_info, (char *)add_suburi);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PORT_RESOURCE_ID, SCHEMACLASS_MAJOR, major_schema_name);
-    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_PORT_PDR_HANDLE);
+    pldm_redfish_resource_pdr_fill(buf, malloc_len, PLDM_PORT_PDR_HANDLE, PLDM_BASE_PORT_RESOURCE_ID, CBIT(1), PLDM_REDFISH_EXTERNAL, MAX_LAN_NUM, (void *)add_info, (void *)add_suburi);
 }
 
 static void pldm_redfish_add_network_dev_func_pdr(void)
@@ -975,18 +943,13 @@ static void pldm_redfish_add_network_dev_func_pdr(void)
     pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_NETWORK_DEV_FUNC_PDR_HANDLE);
     if (is_exist) return;
 
-    char *proposed_containing_resource_name = "";
-    char *sub_uri = "0";
-    char *major_schema_name = "NetworkDeviceFunction.NetworkDeviceFunction";
+    proposed_containing_resource_name = "";
+    sub_uri = "0";
+    major_schema_name = "NetworkDeviceFunction.NetworkDeviceFunction";
     pldm_redfish_add_info_t add_info[2 * MAX_LAN_NUM];
     char add_suburi[2 * MAX_LAN_NUM][11];
 
-    u8 proposed_containing_resource_name_len = cm_strlen(proposed_containing_resource_name) + 1;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
-
-    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN + proposed_containing_resource_name_len + \
-    sub_uri_len + major_schema_name_len + sizeof(add_suburi) + sizeof(add_info);
+    u8 malloc_len = pldm_redfish_pdr_malloc_size_get() + sizeof(add_suburi) + sizeof(add_info);
     u8 *buf = (u8 *)pdr_malloc(malloc_len);
     if (!buf) {
         return;
@@ -1005,41 +968,15 @@ static void pldm_redfish_add_network_dev_func_pdr(void)
         add_info[MAX_LAN_NUM + i].add_suburi_byte_len = cm_strlen(add_suburi[MAX_LAN_NUM + i]) + 1;
     }
 
-    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, PLDM_NETWORK_DEV_FUNC_PDR_HANDLE, PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID, \
-    CBIT(1), PLDM_BASE_NETWORK_DEV_FUNCS_RESOURCE_ID, proposed_containing_resource_name);
-    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
-    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 2 * MAX_LAN_NUM, add_info, (char *)add_suburi);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID, SCHEMACLASS_MAJOR, major_schema_name);
-    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_NETWORK_DEV_FUNC_PDR_HANDLE);
+    pldm_redfish_resource_pdr_fill(buf, malloc_len, PLDM_NETWORK_DEV_FUNC_PDR_HANDLE, PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID, CBIT(1), PLDM_BASE_NETWORK_DEV_FUNCS_RESOURCE_ID, 2 * MAX_LAN_NUM, (void *)add_info, (void *)add_suburi);
 }
 
 static void pldm_redfish_add_pcie_funcs_pdr(void)
 {
-    pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_PCIE_FUNCS_PDR_HANDLE);
-    if (is_exist) return;
-
-    char *proposed_containing_resource_name = "";
-    char *sub_uri = "NetworkDeviceFunctions";
-    char *major_schema_name = "NetworkDeviceFunctionCollection.NetworkDeviceFunctionCollection";
-
-    u8 proposed_containing_resource_name_len = cm_strlen(proposed_containing_resource_name) + 1;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
-
-    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN + proposed_containing_resource_name_len + \
-    sub_uri_len + major_schema_name_len;
-    u8 *buf = (u8 *)pdr_malloc(malloc_len);
-    if (!buf) {
-        return;
-    }
-    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, PLDM_PCIE_FUNCS_PDR_HANDLE, PLDM_BASE_PCIE_FUNCS_RESOURCE_ID, \
-    CBIT(2), PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID, proposed_containing_resource_name);
-    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
-    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PCIE_FUNCS_RESOURCE_ID, SCHEMACLASS_MAJOR, major_schema_name);
-    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_PCIE_FUNCS_PDR_HANDLE);
+    proposed_containing_resource_name = "";
+    sub_uri = "NetworkDeviceFunctions";
+    major_schema_name = "NetworkDeviceFunctionCollection.NetworkDeviceFunctionCollection";
+    pldm_redfish_pdr_add(PLDM_PCIE_FUNCS_PDR_HANDLE, PLDM_BASE_PCIE_FUNCS_RESOURCE_ID, CBIT(2), PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID);
 }
 
 static void pldm_redfish_add_pcie_func_pdr(void)
@@ -1047,18 +984,13 @@ static void pldm_redfish_add_pcie_func_pdr(void)
     pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_PCIE_FUNC_PDR_HANDLE);
     if (is_exist) return;
 
-    char *proposed_containing_resource_name = "";
-    char *sub_uri = "/0";
-    char *major_schema_name = "PCIeFunction.PCIeFunction";
+    proposed_containing_resource_name = "";
+    sub_uri = "/0";
+    major_schema_name = "PCIeFunction.PCIeFunction";
     pldm_redfish_add_info_t add_info[MAX_LAN_NUM];
     char add_suburi[MAX_LAN_NUM][3];
 
-    u8 proposed_containing_resource_name_len = cm_strlen(proposed_containing_resource_name) + 1;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
-
-    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN + proposed_containing_resource_name_len + \
-    sub_uri_len + major_schema_name_len + sizeof(add_suburi) + sizeof(add_info);
+    u8 malloc_len = pldm_redfish_pdr_malloc_size_get() + sizeof(add_suburi) + sizeof(add_info);
     u8 *buf = (u8 *)pdr_malloc(malloc_len);
     if (!buf) {
         return;
@@ -1074,41 +1006,15 @@ static void pldm_redfish_add_pcie_func_pdr(void)
         add_info[i].add_suburi_byte_len = cm_strlen(add_suburi[i]) + 1;
     }
 
-    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, PLDM_PCIE_FUNC_PDR_HANDLE, PLDM_BASE_PCIE_FUNC_RESOURCE_ID, \
-    CBIT(1), PLDM_BASE_PCIE_FUNCS_RESOURCE_ID, proposed_containing_resource_name);
-    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
-    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, MAX_LAN_NUM, add_info, (char *)add_suburi);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_PCIE_FUNC_RESOURCE_ID, SCHEMACLASS_MAJOR, major_schema_name);
-    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_PCIE_FUNC_PDR_HANDLE);
+    pldm_redfish_resource_pdr_fill(buf, malloc_len, PLDM_PCIE_FUNC_PDR_HANDLE, PLDM_BASE_PCIE_FUNC_RESOURCE_ID, CBIT(1), PLDM_BASE_PCIE_FUNCS_RESOURCE_ID, MAX_LAN_NUM, (void *)add_info, (void *)add_suburi);
 }
 
 static void pldm_redfish_add_eth_interface_collection_pdr(void)
 {
-    pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_ETH_INTERFACE_COLLECTION_PDR_HANDLE);
-    if (is_exist) return;
-
-    char *proposed_containing_resource_name = "System";
-    char *sub_uri = "";
-    char *major_schema_name = "EthernetInterfaceCollection.EthernetInterfaceCollection";
-
-    u8 proposed_containing_resource_name_len = cm_strlen(proposed_containing_resource_name) + 1;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
-
-    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN + proposed_containing_resource_name_len + \
-    sub_uri_len + major_schema_name_len;
-    u8 *buf = (u8 *)pdr_malloc(malloc_len);
-    if (!buf) {
-        return;
-    }
-    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, PLDM_ETH_INTERFACE_COLLECTION_PDR_HANDLE, PLDM_BASE_ETH_INTERFACE_COLLECTION_RESOURCE_ID, \
-    CBIT(2) | CBIT(0), PLDM_REDFISH_EXTERNAL, proposed_containing_resource_name);
-    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
-    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 0, NULL, NULL);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_ETH_INTERFACE_COLLECTION_RESOURCE_ID, SCHEMACLASS_MAJOR, major_schema_name);
-    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_ETH_INTERFACE_COLLECTION_PDR_HANDLE);
+    proposed_containing_resource_name = "System";
+    sub_uri = "";
+    major_schema_name = "EthernetInterfaceCollection.EthernetInterfaceCollection";
+    pldm_redfish_pdr_add(PLDM_ETH_INTERFACE_COLLECTION_PDR_HANDLE, PLDM_BASE_ETH_INTERFACE_COLLECTION_RESOURCE_ID, CBIT(2) | CBIT(0), PLDM_REDFISH_EXTERNAL);
 }
 
 static void pldm_redfish_add_eth_interface_pdr(void)
@@ -1116,18 +1022,13 @@ static void pldm_redfish_add_eth_interface_pdr(void)
     pldm_pdr_record_t *is_exist = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_ETH_INTERFACE_PDR_HANDLE);
     if (is_exist) return;
 
-    char *proposed_containing_resource_name = "";
-    char *sub_uri = "0";
-    char *major_schema_name = "EthernetInterface.EthernetInterface";
-    pldm_redfish_add_info_t add_info[2 * MAX_LAN_NUM];
+    proposed_containing_resource_name = "";
+    sub_uri = "0";
+    major_schema_name = "EthernetInterface.EthernetInterface";
+    pldm_redfish_add_info_t add_info[2 * MAX_LAN_NUM] = {0};
     char add_suburi[2 * MAX_LAN_NUM][11];
 
-    u8 proposed_containing_resource_name_len = cm_strlen(proposed_containing_resource_name) + 1;
-    u8 sub_uri_len = cm_strlen(sub_uri) + 1;
-    u8 major_schema_name_len = cm_strlen(major_schema_name) + 1;
-
-    u8 malloc_len = PLDM_REDFISH_RESOURCE_PDR_BASE_LEN + proposed_containing_resource_name_len + \
-    sub_uri_len + major_schema_name_len + sizeof(add_suburi) + sizeof(add_info);
+    u8 malloc_len = pldm_redfish_pdr_malloc_size_get();
     u8 *buf = (u8 *)pdr_malloc(malloc_len);
     if (!buf) {
         return;
@@ -1146,13 +1047,7 @@ static void pldm_redfish_add_eth_interface_pdr(void)
         add_info[MAX_LAN_NUM + i].add_suburi_byte_len = cm_strlen(add_suburi[MAX_LAN_NUM + i]) + 1;
     }
 
-    u8 *next_part = pldm_redfish_resource_pdr_fill_first_part(buf, malloc_len, PLDM_ETH_INTERFACE_PDR_HANDLE, PLDM_BASE_ETH_INTERFACE_RESOURCE_ID, \
-    CBIT(1), PLDM_BASE_ETH_INTERFACE_COLLECTION_RESOURCE_ID, proposed_containing_resource_name);
-    next_part = pldm_redfish_resource_pdr_fill_middle0_part(next_part, sub_uri);
-    next_part = pldm_redfish_resource_pdr_fill_middle1_part(next_part, 2 * MAX_LAN_NUM, add_info, (char *)add_suburi);
-    next_part = pldm_redfish_resource_pdr_fill_middle2_part(next_part, PLDM_BASE_ETH_INTERFACE_RESOURCE_ID, SCHEMACLASS_MAJOR, major_schema_name);
-    pldm_redfish_resource_pdr_fill_end_part(next_part, 0);
-    pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), buf, malloc_len, PLDM_ETH_INTERFACE_PDR_HANDLE);
+    pldm_redfish_resource_pdr_fill(buf, malloc_len, PLDM_ETH_INTERFACE_PDR_HANDLE, PLDM_BASE_ETH_INTERFACE_RESOURCE_ID, CBIT(1), PLDM_BASE_ETH_INTERFACE_COLLECTION_RESOURCE_ID, 2 * MAX_LAN_NUM, (void *)add_info, (void *)add_suburi);
 }
 
 #define PLDM_REDFISH_ACTION_PDR_BASE_LEN (sizeof(pldm_redfish_action_pdr_first_part_t) + sizeof(pldm_redfish_action_pdr_end_part_t))
@@ -1251,7 +1146,6 @@ static void pldm_redfish_add_port_reset_pdr(void)
 
 static int pldm_fru_add_fru_record_set_pdr(pldm_fru_record_set_pdr_t *fru_record_set_pdr)
 {
-    if (!fru_record_set_pdr) return FAILURE;
     fru_record_set_pdr->hdr.record_handle = PLDM_FRU_RECORD_SET_PDR_HANDLE;
     fru_record_set_pdr->hdr.version = PLDM_EVENT_FORMAT_VERSION;
     fru_record_set_pdr->hdr.type = FRU_RECORD_SET_PDR;
@@ -1283,7 +1177,7 @@ void pldm_fru_pdr_init(void)
 
     int ret = pldm_fru_add_fru_record_set_pdr(fru_record_set_pdr);
     if (ret == FAILURE) {
-        LOG("fill_terminus_locator_pdr err, %s", __FUNCTION__);
+        LOG("pldm_fru_add_fru_record_set_pdr err, %s", __FUNCTION__);
         return;
     }
     pldm_pdr_add(&(g_pldm_monitor_info.pldm_repo), (u8 *)fru_record_set_pdr, sizeof(pldm_fru_record_set_pdr_t), fru_record_set_pdr->hdr.record_handle);
@@ -1563,7 +1457,7 @@ static pldm_monitor_handle pldm_link_func[][5] = {
 
 void pldm_link_handle(u8 port, u8 link_state)
 {
-    if (port >= MAX_LAN_NUM || link_state != LINK_DOWN || link_state != LINK_UP) return;
+    if (port >= MAX_LAN_NUM || ((link_state != LINK_DOWN) && (link_state != LINK_UP))) return;
     g_pldm_monitor_info.repo_state = PLDM_REPO_UPDATE_IN_PROGRESS;
     for (int i = 0; i < (sizeof(pldm_link_func[link_state]) / sizeof(pldm_link_func[link_state][0])); i++) {
         if (pldm_link_func[link_state][i] != NULL) {
@@ -1576,5 +1470,133 @@ void pldm_link_handle(u8 port, u8 link_state)
 
     g_pldm_monitor_info.repo_state = PLDM_REPO_AVAILABLE;
     // g_pldm_monitor_info.pldm_repo.update_time =
-   pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));
+    pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));
+}
+
+/* 摄氏度 */
+static void pldm_temperature_date_update(u8 port)
+{
+    u16 raw_val = CM_MODULE_GET_TEMPERATURE_DATE(port);
+
+    u16 sign = raw_val & CBIT(15);
+    if (sign) {
+        raw_val = (~raw_val);
+        raw_val++;
+    }
+
+    raw_val = raw_val >> 8;                      // 只保留整数部分
+
+    if (sign) raw_val |= CBIT(15);
+
+    temp_sensors[PLUG_TEMP_SENSOR][port].present_reading = raw_val;
+}
+
+/* maybe not used */
+/* 伏特 */
+// static void pldm_voltage_data_update(u8 port)
+// {
+//     u16 raw_val = CM_MODULE_GET_VOLTAGE_DATA(port);
+//     raw_val = (raw_val + (VOLTAGE_UNIT_CONVER / 2)) / VOLTAGE_UNIT_CONVER;
+// }
+
+/* 0.1微瓦 */
+static void pldm_power_data_update(u8 port)
+{
+    u16 raw_val = CM_MODULE_GET_POWER_DATA(port);
+    plug_power_sensors[port].present_reading = raw_val;
+}
+
+/* refer to SFF-8024 Rev 4.6, https://www.gigalight.com/downloads/standards/sff-8024.pdf */
+static void pldm_identifier_update(u8 port)
+{
+    u16 raw_val = CM_MODULE_GET_IDENTIFIER(port);
+    switch (raw_val) {
+        case 0x03:  /* SFP/SFP+/SFP28 */
+            temp_sensors[PLUG_TEMP_SENSOR][port].entity_type = SFP;
+            plug_power_sensors[port].entity_type = SFP;
+            break;
+        case 0x0C:  /* QSFP (INF-8438) */
+            temp_sensors[PLUG_TEMP_SENSOR][port].entity_type = QSFP;
+            plug_power_sensors[port].entity_type = QSFP;
+            break;
+        case 0x11:  /* QSFP28 or later with SFF-8636 management interface (SFF-8665 et al.) *2  */
+            temp_sensors[PLUG_TEMP_SENSOR][port].entity_type = QSFP28;
+            plug_power_sensors[port].entity_type = QSFP28;
+            break;
+        default:
+            break;
+    }
+}
+
+/* 摄氏度 */
+static void pldm_warn_data_update(pldm_temp_sensor_threshold_data_t *temp_data, u8 port)
+{
+    u16 raw_val = CM_MODULE_GET_WARN_DATA(port);
+
+    u16 sign = raw_val & CBIT(15);
+    if (sign) {
+        raw_val = (~raw_val);
+        raw_val++;
+    }
+
+    raw_val = raw_val >> 8;                      // 只保留整数部分
+
+    if (sign) raw_val |= CBIT(15);
+    temp_data->warning_high = raw_val;
+}
+
+/* 摄氏度 */
+static void pldm_alarm_data_update(pldm_temp_sensor_threshold_data_t *temp_data, u8 port)
+{
+    u16 raw_val = CM_MODULE_GET_ALARM_DATA(port);
+
+    u16 sign = raw_val & CBIT(15);
+    if (sign) {
+        raw_val = (~raw_val);
+        raw_val++;
+    }
+
+    raw_val = raw_val >> 8;                      // 只保留整数部分
+
+    if (sign) raw_val |= CBIT(15);
+    temp_data->critical_high = raw_val;
+    temp_data->fatal_high = raw_val;
+}
+
+void pldm_get_temp_sensor_threshold(pldm_temp_sensor_threshold_data_t *temp_data, u8 sensor_type, u8 port)
+{
+    if (!temp_data || port >= MAX_LAN_NUM) return;
+    switch(sensor_type) {
+        case PLUG_TEMP_SENSOR:
+            pldm_warn_data_update(temp_data, port);
+            pldm_alarm_data_update(temp_data, port);
+            break;
+        case NIC_TEMP_SENSOR:
+            break;
+        case NC_TEMP_SENSOR:
+            break;
+    }
+}
+
+void pldm_get_link_spd_cap(pldm_speed_sensor_cap_t *speed_data, u8 port)
+{
+    if (!speed_data || port >= MAX_LAN_NUM) return;
+    speed_data->max_readable = CM_MODULE_GET_SIGNAL_RATE_DATA(port);
+    speed_data->min_readable = 0;
+}
+
+/* MBd */
+static void pldm_signal_rate_data_update(u8 port)
+{
+    link_speed_sensors[port].present_reading = CM_MODULE_GET_SIGNAL_RATE_DATA(port);
+}
+
+/* in period monitor task in the future */
+void pldm_module_info_update(u8 port)
+{
+    if (port >= MAX_LAN_NUM) return;
+    pldm_temperature_date_update(port);
+    pldm_power_data_update(port);
+    pldm_identifier_update(port);
+    pldm_signal_rate_data_update(port);
 }

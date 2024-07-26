@@ -9,7 +9,7 @@
 #include <stdarg.h>
 
 #define VDM_SPLIT_MAX_LEN               (48)
-#define MAX_LAN_NUM                     (2)
+#define MAX_LAN_NUM                     (4)
 #define UPGRADE_MODE                    CBIT(1)
 #define CM_LOG_FILTER                   (0)
 
@@ -21,6 +21,17 @@
 #define cm_strcmp                       strcmp
 #define cm_sprintf                      sprintf
 #define cm_snprintf                     snprintf
+
+#define CM_MODULE_GET_TEMPERATURE_DATE(port)        (0)
+#define CM_MODULE_GET_VOLTAGE_DATA(port)            (0)
+#define CM_MODULE_GET_POWER_DATA(port)              (0)
+#define CM_MODULE_GET_IDENTIFIER(port)              (0)
+#define CM_MODULE_GET_WARN_DATA(port)               (0)
+#define CM_MODULE_GET_ALARM_DATA(port)              (0)
+#define CM_MODULE_GET_SIGNAL_RATE_DATA(port)        (0)
+
+#define LINK_DOWN                               0
+#define LINK_UP                                 1
 
 #define CM_PLDM_FWUP_START_UPDATE() \
 do {\
@@ -55,16 +66,5 @@ extern FILE *g_fp;
 #else 
     #define LOG(...)
 #endif
-
-#pragma pack(1)
-
-typedef struct
-{
-    /* BCD encode */
-    u32 version;
-    u32 mode;
-} sys_ctrl_t;
-
-#pragma pach()
 
 #endif /* __MAIN_H__ */

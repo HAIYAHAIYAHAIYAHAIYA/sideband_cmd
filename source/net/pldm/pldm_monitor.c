@@ -903,6 +903,47 @@ static void pldm_monitor_base_info_init(pldm_monitor_base_info_t *pldm_monitor_b
     pldm_pdr_init(&(pldm_monitor_base_info->pldm_repo));
 }
 
+void pldm_monitor_printf_repo(pldm_pdr_t *repo)
+{
+    LOG("record_count : %d", repo->record_count);
+    LOG("size : %d", repo->size);
+    char *str = "2019-05-04-18";
+    cm_memcpy(&(repo->update_time), str, 13);
+    LOG("largest pdr size : %d", repo->largest_pdr_size);
+    LOG("time : %s", __TIME__);
+    LOG("update_time : %s", &(repo->update_time));
+    LOG("repo_signature : %d", repo->repo_signature);
+    u16 sum_size = 0;
+    u8 cnt = 0;
+    pldm_pdr_record_t *pdr = NULL;
+#if MY_LIST
+    pdr = repo->first;
+#else
+    pdr = repo->head;
+#endif
+    while (pdr) {
+        cnt++;
+        pldm_pdr_hdr_t *hdr = (pldm_pdr_hdr_t *)(pdr->data);
+        LOG("pdr size : %04d, record handle : %04d, type : %d", pdr->size, pdr->record_handle, hdr->type);
+        repo->repo_signature = 0;
+        repo->repo_signature = crc32_pldm(repo->repo_signature ^ 0xFFFFFFFFUL, pdr->data, pdr->size);
+        sum_size += pdr->size;
+        pdr = pdr->next;
+    }
+    LOG("sum size : %d, cnt : %d, signature : %#x", sum_size, cnt, repo->repo_signature);
+    pldm_pdr_record_t *delete_pdr = NULL;
+#if MY_LIST
+    delete_pdr = repo->is_deleted;
+#else
+    delete_pdr = repo->is_deleted_head;
+#endif
+    while (delete_pdr) {
+        LOG("deleted pdr size : %d, record handle : %d", delete_pdr->size, delete_pdr->record_handle);
+        delete_pdr = delete_pdr->next;
+    }
+}
+
+
 void pldm_monitor_init(void)
 {
     pldm_monitor_base_info_init(&g_pldm_monitor_info);
@@ -922,6 +963,9 @@ void pldm_monitor_init(void)
     for (u8 i = 0; i < MAX_LAN_NUM; i++) {
         pldm_link_handle(i, 1);
     }
+    // pldm_monitor_printf_repo(&(g_pldm_monitor_info.pldm_repo));
+    pldm_pdr_get_used();
+
 }
 
 void pldm_monitor_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
@@ -1011,6 +1055,8 @@ void pldm_event_send_handle(void)
     pldm_event_rbuf_try_read(g_pldm_monitor_info.pldm_event_rbuf, event_data_info, sizeof(pldm_event_data_t), 0);
     pldm_event_data_t *pldm_event_data = (pldm_event_data_t *)event_data_info;                       /* the oldest event */
     u8 event_cnt = g_event_id - pldm_event_data->event_id;
+
+    LOG("event_cnt : %d", event_cnt);
 
     if (g_pldm_monitor_info.event_receiver_eid) {
         u8 msg_len = 0;

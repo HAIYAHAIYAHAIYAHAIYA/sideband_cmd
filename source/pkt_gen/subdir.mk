@@ -1,5 +1,6 @@
 include $(SOURCE_DIR)/pkt_gen/pldm_gen/subdir.mk
 include $(SOURCE_DIR)/pkt_gen/mctp_gen/subdir.mk
+include $(SOURCE_DIR)/pkt_gen/ncsi_gen/subdir.mk
 
 PKT_GEN_DIR = $(SOURCE_DIR)/pkt_gen
 INCLUDES += -I $(PKT_GEN_DIR)

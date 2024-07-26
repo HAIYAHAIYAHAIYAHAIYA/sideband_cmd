@@ -6,6 +6,9 @@
 #include "pldm_redfish_gen.h"
 #include "pldm_fru_gen.h"
 
+#include "ncsi_gen.h"
+#include "ncsi.h"
+
 void gen_cmd_unsupport(u8 *buf)
 {
 
@@ -22,6 +25,11 @@ void mctp_gen(int cmd, u8 *buf)
     mctp_ctrl_gen(cmd, buf);
 }
 
+void ncsi_gen(int cmd, u8 *buf)
+{
+    ncsi_cmd_gen(cmd, buf);
+}
+
 void pldm_gen_init(void)
 {
     pldm_ctrl_gen_init();
@@ -29,6 +37,8 @@ void pldm_gen_init(void)
     pldm_monitor_gen_init();
     pldm_redfish_gen_init();
     pldm_fru_gen_init();
+
+    // ncsi_init(1);
 }
 
 u8 pldm_gen(int type, int cmd, u8 *buf)

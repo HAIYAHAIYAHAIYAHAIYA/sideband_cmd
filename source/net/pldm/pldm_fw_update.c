@@ -1,6 +1,7 @@
 #include "pldm_fw_update.h"
 #include "pldm.h"
 #include "mctp.h"
+#include "ncsi.h"
 
 pldm_fwup_base_info_t g_pldm_fwup_info;
 

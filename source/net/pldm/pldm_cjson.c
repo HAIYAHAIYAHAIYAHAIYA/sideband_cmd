@@ -9,8 +9,6 @@ static u16 gs_pldm_cjson_wt;
 extern pldm_nic_composite_state_sensor_data_struct_t nic_composite_state_sensors[4];
 extern pldm_controller_composite_state_sensor_data_struct_t controller_composite_state_sensors[5];
 
-extern pldm_redfish_schema_info_t schema_info[ALL_SCHEMA];
-
 void pldm_cjson_pool_init(void)
 {
     gs_pldm_cjson_pool = gs_pldm_cjson_buf;
@@ -503,10 +501,13 @@ static void pldm_cjson_fill_comm_field_in_schema(pldm_cjson_t *root, u8 is_colle
     str[1] = 'I';
     cm_snprintf(&str[2], 14, "%d", id);
 
+    char uri_suffix[39];
+    pldm_redfish_get_schema_uri_suffix(resource_identify, uri_suffix, SCHEMACLASS_MAJOR);
+
     u8 uri_prefix_len = cm_strlen(schema_uri_prefix);
-    u8 uri_suffix_len = cm_strlen(schema_info[resource_identify].uri[SCHEMACLASS_MAJOR]);
+    u8 uri_suffix_len = cm_strlen(uri_suffix);
     cm_memcpy(uri, schema_uri_prefix, uri_prefix_len);
-    cm_memcpy(&(uri[uri_prefix_len]), &(schema_info[resource_identify].uri[SCHEMACLASS_MAJOR]), uri_suffix_len);
+    cm_memcpy(&(uri[uri_prefix_len]), uri_suffix, uri_suffix_len);
     uri[uri_prefix_len + uri_suffix_len] = '\0';
 
     char *key[6] = {
@@ -597,10 +598,13 @@ void pldm_cjson_fill_comm_field_in_schema_update(pldm_cjson_t *root, u8 is_colle
     str[1] = 'I';
     cm_snprintf(&str[2], 14, "%d", id);
 
+    char uri_suffix[39];
+    pldm_redfish_get_schema_uri_suffix(resource_identify, uri_suffix, SCHEMACLASS_MAJOR);
+
     u8 uri_prefix_len = cm_strlen(schema_uri_prefix);
-    u8 uri_suffix_len = cm_strlen(schema_info[resource_identify].uri[SCHEMACLASS_MAJOR]);
+    u8 uri_suffix_len = cm_strlen(uri_suffix);
     cm_memcpy(uri, schema_uri_prefix, uri_prefix_len);
-    cm_memcpy(&(uri[uri_prefix_len]), &(schema_info[resource_identify].uri[SCHEMACLASS_MAJOR]), uri_suffix_len);
+    cm_memcpy(&(uri[uri_prefix_len]), uri_suffix, uri_suffix_len);
     uri[uri_prefix_len + uri_suffix_len] = '\0';
 
     char *key[6] = {

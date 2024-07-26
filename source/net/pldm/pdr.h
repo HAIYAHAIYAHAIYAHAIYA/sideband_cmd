@@ -4,11 +4,8 @@
 #include "main.h"
 
 #define PDR_MIN_SIZE                    (1)
-#define PDR_POOL_SIZE                   (9 * 512)          /* all size 2825 bytes , only static size 968 bytes, except redfish pdr. */
+#define PDR_POOL_SIZE                   (MAX_LAN_NUM == 2 ? 3200 : 4608)
 #define NOT_FIELD                       (0xFF)
-
-#define LINK_DOWN                               0
-#define LINK_UP                                 1
 
 typedef enum {
     TERMINUS_LOCATOR_PDR = 1,
@@ -489,6 +486,7 @@ typedef int (*fill_common_sensor_pdr)(void *buf, u16 sensor_id, u16 entity_type,
 
 void pdrs_pool_init(u32 *addr);
 void *pdr_malloc(int size);
+u32 pldm_pdr_get_used(void);
 
 void pldm_pdr_init(pldm_pdr_t *repo);
 pldm_pdr_record_t *pldm_find_insert(pldm_pdr_t *repo, u32 record_handle);

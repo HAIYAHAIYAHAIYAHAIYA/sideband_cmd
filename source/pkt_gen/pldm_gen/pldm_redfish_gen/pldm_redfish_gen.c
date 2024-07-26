@@ -123,7 +123,7 @@ static void pldm_redfish_gen_cmd_0b(u8 *buf)
 pldm_payload_dat_t g_send_buf;
 extern u8 g_dict_info[PLDM_REDFISH_DICT_INFO_LEN];
 extern u8 g_anno_dict[PLDM_REDFISH_ANNO_DICT_LEN];
-extern u8 g_needed_dict[PLDM_REDFISH_PORT_DICT_LEN];
+extern u8 g_needed_dict[PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN];
 extern schema_create g_schemas_update[11];
 extern u16 pldm_redfish_get_dict_len(u32 resource_id);
 extern u8 resource_id_to_resource_identity(u32 resource_id);
@@ -133,14 +133,14 @@ static void pldm_redfish_gen_cmd_10(u8 *buf)
         g_cur_op_identify.resource_id = dict_resource_id[idx];
         // g_cur_op_identify.resource_id = PLDM_BASE_PCIE_DEV_RESOURCE_ID;
         g_cur_op_identify.op_id = idx | CBIT(15);
-        g_cur_op_identify.op_flg = CBIT(1);
+        g_cur_op_identify.op_flg = 0;
         idx++;
         if (idx >= PLDM_REDFISH_DICT_NUM) idx = 0;
         LOG("idx : %d", idx);
     // }
 
     pldm_redfish_rde_operation_init_req_dat_t *req_dat = (pldm_redfish_rde_operation_init_req_dat_t *)buf;
-    req_dat->op_type = REPLACE;
+    req_dat->op_type = READ;
     req_dat->op_flg = g_cur_op_identify.op_flg;
     req_dat->op_identify = g_cur_op_identify;
     req_dat->op_locator_len = 0;
@@ -152,7 +152,7 @@ static void pldm_redfish_gen_cmd_10(u8 *buf)
         u8 *anno_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
         u8 *dict = &g_needed_dict[DICT_FMT_HDR_LEN];
         u8 ret = pldm_redfish_get_dict_data(g_cur_op_identify.resource_id, SCHEMACLASS_MAJOR,\
-        g_needed_dict, pldm_redfish_get_dict_len(g_cur_op_identify.resource_id));
+        g_needed_dict, 0);
         if (ret == false) LOG("%s, pldm_redfish_get_dict_data err.", __FUNCTION__);
 
         u8 resourse_indenty = resource_id_to_resource_identity(g_cur_op_identify.resource_id);
@@ -230,7 +230,7 @@ static void pldm_redfish_gen_cmd_15(u8 *buf)
 
 static void pldm_redfish_gen_cmd_16(u8 *buf)
 {
-
+    gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_ENTER_CMD_16;
 }
 
 static u32 data_hdl = 0;
@@ -313,6 +313,7 @@ pkt_gen_state_transform_t pldm_redfish_state_transform[] = {
     {PLDM_REDFISH_GEN_IDLE, PLDM_REDFISH_GEN_ENTER_CMD_14,    PLDM_REDFISH_GEN_IDLE, NULL},
     {PLDM_REDFISH_GEN_IDLE, PLDM_REDFISH_GEN_ENTER_CMD_13,    PLDM_REDFISH_GEN_IDLE, NULL},
     {PLDM_REDFISH_GEN_IDLE, PLDM_REDFISH_GEN_ENTER_CMD_15,    PLDM_REDFISH_GEN_IDLE, NULL},
+    {PLDM_REDFISH_GEN_IDLE, PLDM_REDFISH_GEN_ENTER_CMD_16,    PLDM_REDFISH_GEN_IDLE, NULL},
 };
 
 void pldm_redfish_gen(int cmd, u8 *buf)

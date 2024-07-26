@@ -16,7 +16,7 @@ export PLDM_REDFISH_DICT_GEN = ${SOURCE_DIR}/net/pldm/pldm_scripts/pldm_redfish_
 OBJS = $(C_SRCS:%.c=$(OUTPUT_DIR)/%.o)
 OBJS_D := $(patsubst %.c,$(OUTPUT_DIR)/%.d,$(C_SRCS))		# add .d 自动生成依赖
 
-TARGET = $(OUTPUT_DIR)/main.exe
+TARGET = $(OUTPUT_DIR)/main
 
 CC = gcc
 ALL = cleanall excute clean
@@ -44,4 +44,4 @@ clean:
 	rm -rf $(OUTPUT_DIR)/
 
 excute:
-	$(OUTPUT_DIR)/main
+	$(TARGET)
