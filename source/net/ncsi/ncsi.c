@@ -177,7 +177,7 @@ u8 *fifo_push_data(u8 *buf, int len, u8 *head, u8 *tail, u8 *pbgn, u8 *pend)
 
 void ncsi_init_dev(ncsi_chn_dev *dev, int ch_id)
 {
-    cm_memcpy(dev, 0, sizeof(ncsi_chn_dev));
+    cm_memset(dev, 0, sizeof(ncsi_chn_dev));
 
     dev->channel_id = ch_id;
     //dev->request = gs_ncsi_request + ch_id;
@@ -212,7 +212,7 @@ void ncsi_init(int port_num)
 
 void ncsi_init_resp(ncsi_chn_dev *dev)
 {
-    cm_memcpy(dev->respond, 0, sizeof(ncsi_rsp_msg));
+    cm_memset(dev->respond, 0, sizeof(ncsi_rsp_msg));
     //memset(dev->respond->rsp.ether.src, 0xFF, sizeof(dev->respond->rsp.ether.src));
     //memset(dev->respond->rsp.ether.dst, 0xFF, sizeof(dev->respond->rsp.ether.dst));
 
@@ -238,7 +238,7 @@ void ncsi_init_aen(ncsi_chn_dev *dev)
 {
     ncsi_aen_pkt_hdr *resp = (ncsi_aen_pkt_hdr *)dev->respond;
 
-    cm_memcpy(dev->respond, 0, sizeof(ncsi_aen_lsc_pkt));
+    cm_memset(dev->respond, 0, sizeof(ncsi_aen_lsc_pkt));
     //memset(resp->ether.src, 0xFF, sizeof(resp->ether.src));
     //memset(resp->ether.dst, 0xFF, sizeof(resp->ether.dst));
 
