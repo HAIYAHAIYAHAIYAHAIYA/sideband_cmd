@@ -17,7 +17,6 @@ void pldm_cjson_pool_init(void)
 
 void pldm_cjson_pool_reinit(void)
 {
-    gs_pldm_cjson_pool = gs_pldm_cjson_buf;
     gs_pldm_cjson_wt = 0;
 }
 
@@ -444,7 +443,7 @@ char *pldm_cjson_update_etag(pldm_cjson_t *root)
     return is_find ? tmp->sflv.val : NULL;
 }
 
-extern pldm_redfish_bej_t g_resourse_bej[PLDM_REDFISH_RESOURCE_NUM];
+extern pldm_redfish_bej_t g_resource_bej[PLDM_REDFISH_RESOURCE_NUM];
 extern u32 pldm_redfish_resource_id_to_base(u32 resource_id);
 
 schema_create g_schemas[11];
@@ -462,8 +461,8 @@ static u8 pldm_cjson_first_get_etag(u8 resource_identify, u32 resource_id, u8 of
     char *val = pldm_cjson_update_etag(root);
     if (val) {
         cm_memcpy(etag_val, val, 8);
-        g_resourse_bej[resource_identify + offset].is_etag = 1;
-        cm_memcpy(g_resourse_bej[resource_identify + offset].etag, val, 8);
+        g_resource_bej[resource_identify + offset].is_etag = 1;
+        cm_memcpy(g_resource_bej[resource_identify + offset].etag, val, 8);
     }
 
     pldm_cjson_pool_reinit();
@@ -479,9 +478,18 @@ u8 pldm_cjson_get_etag(u8 resource_identify, u32 resource_id, varstring *etag)
 
     u8 ret = true;
     u8 offset = 0;
+    u8 new_resource_identify = resource_identify;
     offset = resource_id - pldm_redfish_resource_id_to_base(resource_id);
-    if (g_resourse_bej[resource_identify + offset].is_etag) {
-        cm_memcpy(etag->val, g_resourse_bej[resource_identify + offset].etag, 8);
+
+    /*  NETWORK_DEVICE_FUNC : identify = 6,
+        PORT_IDENTIFY,
+        PCI_FUNC,
+        ETH_INTERFACE, */
+    if (resource_identify > 6)
+            new_resource_identify += (resource_identify - 6) * (MAX_LAN_NUM - 1);
+
+    if (g_resource_bej[new_resource_identify + offset].is_etag) {
+        cm_memcpy(etag->val, g_resource_bej[new_resource_identify + offset].etag, 8);
     } else {
         ret = pldm_cjson_first_get_etag(resource_identify, resource_id, offset, etag->val);
     }
@@ -547,8 +555,6 @@ static void pldm_cjson_fill_comm_field_in_schema(pldm_cjson_t *root, u8 is_colle
                 enum_str[1] = 0x02;
                 break;
             case UPPER_CRITICAL:
-                enum_str[1] = 'U';
-                break;
             case FATAL:
                 enum_str[1] = 'U';
                 break;
@@ -728,7 +734,7 @@ pldm_cjson_t *pldm_cjson_create_event_schema(u32 resource_id, u8 link_state)
                     {0, BEJ_STR, 0, "MessageId", "NetworkDevice.1.0.1."},
                     {0, BEJ_SET, 1, "OriginOfCondition", ""},
                         {1, BEJ_STR, 0, "@odata.id", str},                     /* Reference to related triggering resource. */
-            {1, BEJ_INT, 0, "Events@odata.count", (char [2]){0x01, 0x00}},
+            {1, BEJ_INT, 0, "@odata.count", (char [2]){0x01, 0x00}},
             {0, BEJ_STR, 0, "Id", "1"},
             {0, BEJ_STR, 0, "Name", "Event"},
     };
@@ -833,12 +839,16 @@ static pldm_cjson_t *pldm_cjson_create_portcollection_schema(u32 resource_id)
         {0, BEJ_SET, 1, "", ""},
             {0, BEJ_SET, 3, "PortCollection", ""},
                 {0, BEJ_STR, 0, "Name", "Ports"},
-                {1, BEJ_INT, 0, "Members@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
-                {0, BEJ_ARRAY, 2, "Members", ""},
+                {1, BEJ_INT, 0, "@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
+                {0, BEJ_ARRAY, MAX_LAN_NUM, "Members", ""},
                     {0, BEJ_SET, 1, "", ""},
                         {1, BEJ_STR, 0, "@odata.id", "%I100"},
                     {0, BEJ_SET, 1, "", ""},
-                        {1, BEJ_STR, 0, "@odata.id", "%I101"}
+                        {1, BEJ_STR, 0, "@odata.id", "%I101"},
+                    {0, BEJ_SET, 1, "", ""},
+                        {1, BEJ_STR, 0, "@odata.id", "%I102"},
+                    {0, BEJ_SET, 1, "", ""},
+                        {1, BEJ_STR, 0, "@odata.id", "%I103"}
     };
     pldm_cjson_create_schema(root, fmt);
     pldm_cjson_t *new_root = NULL;
@@ -936,7 +946,7 @@ static pldm_cjson_t *pldm_cjson_create_networkadapter_v1_5_0_schema(u32 resource
                 {0, BEJ_STR, 0, "SKU", "AMBER"},
                 {0, BEJ_STR, 0, "SerialNumber", "Read from GLPCI_SERH/L.?"},
                 {0, BEJ_SET, 1, "Status", ""},
-                    {0, BEJ_ENUM, 5, "State", (char [3]){0x01, 0x01, 0x00}},
+                    {0, BEJ_ENUM, 0, "State", (char [3]){0x01, 0x01, 0x00}},
                         // {0, BEJ_STR, 0, "StandbyOffline", ""},
                         // {0, BEJ_STR, 0, "Starting", ""},
                         // {0, BEJ_STR, 0, "Updating", ""},
@@ -944,7 +954,7 @@ static pldm_cjson_t *pldm_cjson_create_networkadapter_v1_5_0_schema(u32 resource
                         // {0, BEJ_STR, 0, "Disabled", ""},
                 {0, BEJ_STR, 0, "Id", "%I1"},                   /* PLDM_BASE_NETWORK_ADAPTER_RESOURCE_ID */
                 // {0, BEJ_ARRAY, 1, "ControllerLinks", ""},
-                //     {1, BEJ_INT, 0, "PCIeDevices@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
+                //     {1, BEJ_INT, 0, "@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
     };
     pldm_cjson_create_schema(root, fmt);
     pldm_cjson_t *new_root = NULL;
@@ -970,7 +980,7 @@ static pldm_cjson_t *pldm_cjson_create_networkdevicefunction_v1_3_3_schema(u32 r
                     {0, BEJ_SET, 0, "", ""},
                         // {0, BEJ_STR, 0, "", (char [2]){PLDM_BASE_PORT_RESOURCE_ID, 0x00}},
                         // {0, BEJ_STR, 0, "", (char [2]){PLDM_BASE_PORT_RESOURCE_ID + 1, 0x00}},
-                {1, BEJ_INT, 0, "AssignablePhysicalPorts@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
+                {1, BEJ_INT, 0, "@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
                 {0, BEJ_ENUM, 0, "BootMode", (char [3]){0x01, 0x01, 0x00}},
                     // {0, BEJ_STR, 0, "Disabled", ""},
                     // {0, BEJ_STR, 0, "PXE", ""},
@@ -1043,12 +1053,16 @@ static pldm_cjson_t *pldm_cjson_create_networkdevicefunctioncollection_schema(u3
         {0, BEJ_SET, 1, "", ""},
             {0, BEJ_SET, 3, "NetworkDeviceFunctionCollection", ""},
                 {0, BEJ_STR, 0, "Name", "NetworkDeviceFunctions"},
-                {1, BEJ_INT, 0, "Members@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
-                {0, BEJ_ARRAY, 2, "Members", ""},
+                {1, BEJ_INT, 0, "@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
+                {0, BEJ_ARRAY, MAX_LAN_NUM, "Members", ""},
                     {0, BEJ_SET, 1, "", ""},
                         {1, BEJ_STR, 0, "@odata.id", "%I200"},
                     {0, BEJ_SET, 1, "", ""},
-                        {1, BEJ_STR, 0, "@odata.id", "%I201"}
+                        {1, BEJ_STR, 0, "@odata.id", "%I201"},
+                    {0, BEJ_SET, 1, "", ""},
+                        {1, BEJ_STR, 0, "@odata.id", "%I202"},
+                    {0, BEJ_SET, 1, "", ""},
+                        {1, BEJ_STR, 0, "@odata.id", "%I203"}
     };
     pldm_cjson_create_schema(root, fmt);
     pldm_cjson_t *new_root = NULL;
@@ -1129,12 +1143,16 @@ static pldm_cjson_t *pldm_cjson_create_pciefunctioncollection_schema(u32 resourc
         {0, BEJ_SET, 1, "", ""},
             {0, BEJ_SET, 3, "PCIeDeviceCollection", ""},
                 {0, BEJ_STR, 0, "Name", "PCIeFunctions"},
-                {1, BEJ_INT, 0, "Members@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
-                {0, BEJ_ARRAY, 2, "Members", ""},
+                {1, BEJ_INT, 0, "@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
+                {0, BEJ_ARRAY, MAX_LAN_NUM, "Members", ""},
                     {0, BEJ_SET, 1, "", ""},
                         {1, BEJ_STR, 0, "@odata.id", "%I300"},
                     {0, BEJ_SET, 1, "", ""},
-                        {1, BEJ_STR, 0, "@odata.id", "%I301"}
+                        {1, BEJ_STR, 0, "@odata.id", "%I301"},
+                    {0, BEJ_SET, 1, "", ""},
+                        {1, BEJ_STR, 0, "@odata.id", "%I302"},
+                    {0, BEJ_SET, 1, "", ""},
+                        {1, BEJ_STR, 0, "@odata.id", "%I303"}
     };
     pldm_cjson_create_schema(root, fmt);
     pldm_cjson_t *new_root = NULL;
@@ -1247,12 +1265,16 @@ static pldm_cjson_t *pldm_cjson_create_ethernetinterfacecollection_schema(u32 re
         {0, BEJ_SET, 1, "", ""},
             {0, BEJ_SET, 3, "EthernetInterfaceCollection", ""},
                 {0, BEJ_STR, 0, "Name", "NetworkDeviceFunctions"},
-                {1, BEJ_INT, 0, "Members@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
-                {0, BEJ_ARRAY, 2, "Members", ""},
+                {1, BEJ_INT, 0, "@odata.count", (char [2]){MAX_LAN_NUM, 0x00}},
+                {0, BEJ_ARRAY, MAX_LAN_NUM, "Members", ""},
                     {0, BEJ_SET, 1, "", ""},
                         {1, BEJ_STR, 0, "@odata.id", "%I400"},
                     {0, BEJ_SET, 1, "", ""},
-                        {1, BEJ_STR, 0, "@odata.id", "%I401"}
+                        {1, BEJ_STR, 0, "@odata.id", "%I401"},
+                    {0, BEJ_SET, 1, "", ""},
+                        {1, BEJ_STR, 0, "@odata.id", "%I402"},
+                    {0, BEJ_SET, 1, "", ""},
+                        {1, BEJ_STR, 0, "@odata.id", "%I403"}
     };
     pldm_cjson_create_schema(root, fmt);
     pldm_cjson_t *new_root = NULL;

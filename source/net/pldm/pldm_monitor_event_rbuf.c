@@ -130,9 +130,7 @@ void pldm_sensor_event_generate(void *p, u8 sensor_event_class, u8 event_msg_en,
         sensor_event_dat->sensor_id = op_state->sensor_id;
         sensor_event_dat->sensor_event_class = PLDM_SENSOR_OP_STATE;
 
-        pldm_field_per_sensor_op_state_format_t *op_state_field = (pldm_field_per_sensor_op_state_format_t *)(sensor_event_dat->field_per_event_class);
-        op_state_field->present_op_state = op_state->op_state;
-        op_state_field->previous_op_state = op_state->previous_op_state;
+        cm_memcpy((void *)sensor_event_dat->field_per_event_class, (void *)op_state, sizeof(pldm_field_per_sensor_op_state_format_t));
 
         sensor_event->event_data_size += sizeof(pldm_field_per_sensor_op_state_format_t);
     } else if (sensor_event_class == PLDM_STATE_SENSOR_STATE) {                     /* change in the present state */
@@ -140,10 +138,7 @@ void pldm_sensor_event_generate(void *p, u8 sensor_event_class, u8 event_msg_en,
         sensor_event_dat->sensor_id = sensor_state->sensor_id;
         sensor_event_dat->sensor_event_class = PLDM_STATE_SENSOR_STATE;
 
-        pldm_field_per_state_sensor_state_format_t *sensor_state_field = (pldm_field_per_state_sensor_state_format_t *)(sensor_event_dat->field_per_event_class);
-        sensor_state_field->sensor_offset = sensor_state->sensor_offset;
-        sensor_state_field->event_state = sensor_state->present_state;              /* same as presentState(E810) */
-        sensor_state_field->previous_event_state = sensor_state->previous_state;    /* so */
+        cm_memcpy((void *)sensor_event_dat->field_per_event_class, (void *)&(sensor_state->sensor_offset), sizeof(pldm_field_per_state_sensor_state_format_t));
 
         sensor_event->event_data_size += sizeof(pldm_field_per_state_sensor_state_format_t);
     } else if (sensor_event_class == PLDM_NUMERIC_SENSOR_STATE) {                   /* change in the present state */
@@ -151,11 +146,7 @@ void pldm_sensor_event_generate(void *p, u8 sensor_event_class, u8 event_msg_en,
         sensor_event_dat->sensor_id = sensor_numeric->sensor_id;
         sensor_event_dat->sensor_event_class = PLDM_NUMERIC_SENSOR_STATE;
 
-        pldm_field_per_numeric_sensor_state_format_t *sensor_numeric_field = (pldm_field_per_numeric_sensor_state_format_t *)(sensor_event_dat->field_per_event_class);
-        sensor_numeric_field->sensor_datasize = sensor_numeric->sensor_data_size;
-        sensor_numeric_field->event_state = sensor_numeric->present_state;              /* same as presentState(E810) */
-        sensor_numeric_field->previous_event_state = sensor_numeric->previous_state;    /* so */
-        sensor_numeric_field->present_reading = sensor_numeric->present_reading;
+        cm_memcpy((void *)sensor_event_dat->field_per_event_class, (void *)&(sensor_numeric->present_state), sizeof(pldm_field_per_numeric_sensor_state_format_t));
 
         sensor_event->event_data_size += sizeof(pldm_field_per_numeric_sensor_state_format_t);
     } else {

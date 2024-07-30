@@ -10,7 +10,7 @@ pldm_redfish_base_info_t g_pldm_redfish_base_info;
 static op_info_t gs_op_info = {.dev_status = OPERATION_INACTIVE};
 static op_data_buf_t gs_op_buf;
 static u8 etag[ALL_SCHEMA][9];
-pldm_redfish_bej_t g_resourse_bej[PLDM_REDFISH_RESOURCE_NUM];
+pldm_redfish_bej_t g_resource_bej[PLDM_REDFISH_RESOURCE_NUM];
 u8 g_dict_info[PLDM_REDFISH_DICT_INFO_LEN];
 u8 g_anno_dict[PLDM_REDFISH_ANNO_DICT_LEN];
 u8 g_needed_dict[PLDM_REDFISH_ANNO_DICT_LEN];
@@ -980,9 +980,9 @@ void pldm_redfish_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
 // #include "task.h"
 // static TaskHandle_t redfish_op_task_handle;
 
-static void CM_FLASH_READ(u32 offset, u32 *buf, u32 size)
+void CM_FLASH_READ(u32 offset, u32 *buf, u32 size)
 {
-    FILE *fp = fopen("./build/new_pldm_redfish_dicts.bin", "r+b");
+    FILE *fp = fopen("./build/truncated_pldm_redfish_dicts.bin", "r+b");
     if (!fp) {
         LOG("CM_FLASH_READ open file err!");
         return;
@@ -992,6 +992,10 @@ static void CM_FLASH_READ(u32 offset, u32 *buf, u32 size)
     fclose(fp);
 }
 
+sts_t CM_FALSH_WRITE(u32 offset, u32 *buf, u32 size)
+{
+
+}
 u32 pldm_redfish_resource_id_to_base(u32 resource_id)
 {
     if (resource_id >= PLDM_BASE_PORT_RESOURCE_ID && resource_id <= PLDM_MAX_ETH_INTERFACE_RESOURCE_ID_1) {
@@ -1156,14 +1160,14 @@ void pldm_redfish_op(void)
             goto L_EXIT;
         }
 
-        if (g_resourse_bej[bej_idx + offset].is_bej) {
-            root = pldm_bej_decode(g_resourse_bej[bej_idx + offset].data, g_resourse_bej[bej_idx + offset].len, anno_dict, dict, root, 1);
+        if (g_resource_bej[bej_idx + offset].is_bej) {
+            root = pldm_bej_decode(g_resource_bej[bej_idx + offset].data, g_resource_bej[bej_idx + offset].len, anno_dict, dict, root, 1);
         } else {
             root = g_schemas[resourse_indenty](resource_id);
             if (root) {
                 pldm_cjson_cal_sf_to_root(root, anno_dict, dict);
                 pldm_cjson_cal_len_to_root(root, OTHER_TYPE);
-                if (g_resourse_bej[bej_idx + offset].is_etag != 1)
+                if (g_resource_bej[bej_idx + offset].is_etag != 1)
                     pldm_cjson_update_etag(root);
                 // pldm_cjson_printf_root(root);
             }
@@ -1220,8 +1224,8 @@ void pldm_redfish_op(void)
         if (gs_op_info.op_type == UPDATE || gs_op_info.op_type == REPLACE) {
             char *val = pldm_cjson_update_etag(root);
             if (val) {
-                g_resourse_bej[bej_idx + offset].is_etag = 1;
-                cm_memcpy(g_resourse_bej[bej_idx + offset].etag, val, 8);
+                g_resource_bej[bej_idx + offset].is_etag = 1;
+                cm_memcpy(g_resource_bej[bej_idx + offset].etag, val, 8);
             } else {
                 err_code = -8;
                 goto L_EXIT;
@@ -1253,9 +1257,9 @@ void pldm_redfish_op(void)
         // }
         if (root && gs_op_info.op_type != READ && gs_op_info.op_type != HEAD && gs_op_info.op_type != ACTION) {
             pldm_cjson_cal_len_to_root(root, OTHER_TYPE);
-            u8 *data_end_ptr = pldm_bej_encode(root, g_resourse_bej[bej_idx + offset].data);
-            g_resourse_bej[bej_idx + offset].is_bej = 1;
-            g_resourse_bej[bej_idx + offset].len = data_end_ptr - g_resourse_bej[bej_idx + offset].data;
+            u8 *data_end_ptr = pldm_bej_encode(root, g_resource_bej[bej_idx + offset].data);
+            g_resource_bej[bej_idx + offset].is_bej = 1;
+            g_resource_bej[bej_idx + offset].len = data_end_ptr - g_resource_bej[bej_idx + offset].data;
             // pldm_cjson_delete_node(root);
             root = NULL;
         }
