@@ -42,8 +42,8 @@ static void pldm_fwup_gen_cmd_10(u8 *buf)
     req_dat->num_of_comp = 1;
     req_dat->max_outstanding_transfer_req = 1;
     req_dat->pkt_data_len = fw_records_first_ptr->fw_dev_pkt_data_len;
-    req_dat->comp_img_set_ver_str_type_and_len.comp_img_set_ver_str_type = PLDM_UD_TYPE_ASCII;
-    req_dat->comp_img_set_ver_str_type_and_len.comp_img_set_ver_str_len = cm_strlen(name);
+    req_dat->comp_img_set_ver_str_type_and_len.type = PLDM_UD_TYPE_ASCII;
+    req_dat->comp_img_set_ver_str_type_and_len.len = cm_strlen(name);
     cm_memcpy(req_dat->comp_img_set_ver_str, name, cm_strlen(name));
 
     if (req_dat->pkt_data_len) {

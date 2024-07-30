@@ -7,7 +7,7 @@
     "FirmwareDeviceIdentificationArea": [
         {
             "DeviceUpdateOptionFlags": [0],
-            "ComponentImageSetVersionString": "N:nnnnnnnnO:ooooooooT:tttttttttt",
+            "ComponentImageSetVersionString": "N:nnnnnnnnnO:oooooooooT:tttttttttt",
             "ApplicableComponents": [0],
             "Descriptors": [
                 {
@@ -29,28 +29,28 @@
             ]
         }
     ],
-    "ComponentImageInformationArea": [
+    "ComponentImageInformationArea": [ 
         {
             "ComponentClassification": 13,
             "ComponentIdentifier": 0,
             "ComponentOptions": [],
-            "ComponentComparisonStamp": "0xFFFFFFFE",
+            "ComponentComparisonStamp": "0xFFFFFFFF",
             "RequestedComponentActivationMethod": [4],
-            "ComponentVersionString": "CCCCCCCC.SSSSSSSS"
+            "ComponentVersionString": "CCCCCCCCC.SSSSSSSSS"
         },
         {
             "ComponentClassification": 13,
             "ComponentIdentifier": 1,
             "ComponentOptions": [],
             "RequestedComponentActivationMethod": [4],
-            "ComponentVersionString": "CCCCCCCC.SSSSSSSS"
+            "ComponentVersionString": "CCCCCCCCC.SSSSSSSSC"
         },
         {
             "ComponentClassification": 13,
             "ComponentIdentifier": 2,
             "ComponentOptions": [],
             "RequestedComponentActivationMethod": [4],
-            "ComponentVersionString": "CCCCCCCC.SSSSSSSS"
+            "ComponentVersionString": "CCCCCCCCC.SSSSSSSSF"
         }
     ],
     "valid": "0x07"

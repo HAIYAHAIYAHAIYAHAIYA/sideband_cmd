@@ -49,6 +49,8 @@ do {\
 
 #define CM_IS_AT_UPGRADE_MODE()         (0)
 
+typedef int sts_t;
+
 extern FILE *g_fp;
 
 #if 1

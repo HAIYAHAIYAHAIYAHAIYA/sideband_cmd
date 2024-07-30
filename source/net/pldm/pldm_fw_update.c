@@ -1,7 +1,6 @@
 #include "pldm_fw_update.h"
 #include "pldm.h"
 #include "mctp.h"
-#include "ncsi.h"
 
 pldm_fwup_base_info_t g_pldm_fwup_info;
 
@@ -18,38 +17,41 @@ static u32 gs_id = 1;
 
 static u8 gs_getpackagedata_progress = 0;
 static u8 gs_want_to_end_update = 0;
-static u8 gs_component_index = 0;
 static u32 gs_requestfwdata_once_size = 0;
 
 static u8 gs_progress_flag = 0;                           /* 0: in progress; 1: finish */
 static u8 gs_timeout_occur_flag = 0;                      /* 0: timeout cause update_cancel */
-static u32 log_filter_temp = 0;
 
 static pldm_fwup_time_def_t gs_cal_times;
 
+FILE *pd = NULL;
+
 extern u8 g_pldm_need_rsp;
-extern sys_ctrl_t g_sys;
 extern pldm_controller_composite_state_sensor_data_struct_t controller_composite_state_sensors[5];
 
 extern void pldm_unsupport_cmd(protocol_msg_t *pkt, int *pkt_len);
 extern u32 crc32_pldm(u32 init_crc, u8 *data, u32 len);
 
+extern void CM_FALSH_READ(u32 offset, u32 *buf, u32 size);
+extern sts_t CM_FALSH_WRITE(u32 offset, u32 *buf, u32 size);
+
+/* to be determind */
 static pldm_fwup_upgrade_func_t upgrade_funcs[] = {
-    // [0] = {
-    //     (pldm_fw_upgrade_callback *)CM_PLDM_FWUP_UPGRADE_SLOT_CALLBACK, 
-    //     (pldm_fw_upgrade_complete_callback *)CM_PLDM_FWUP_UPGRADE_SLOT_COMPLETE_CALLBACK, 
-    //     (pldm_fw_upgrade_cancer_callback *)CM_PLDM_FWUP_UPGRADE_SLOT_CANCER_CALLBACK
-    //     },
-    // [1] = {
-    //     (pldm_fw_upgrade_callback *)CM_PLDM_FWUP_UPGRADE_CHIP_CALLBACK, 
-    //     (pldm_fw_upgrade_complete_callback *)CM_PLDM_FWUP_UPGRADE_CHIP_COMPLETE_CALLBACK, 
-    //     (pldm_fw_upgrade_cancer_callback *)CM_PLDM_FWUP_UPGRADE_CHIP_CANCER_CALLBACK
-    //     },
-    // [2] = {
-    //     (pldm_fw_upgrade_callback *)CM_PLDM_FWUP_UPGRADE_FACT_CALLBACK, 
-    //     NULL,
-    //     NULL
-    //     },
+    [PLDM_UD_SLOT] = {
+        NULL,
+        NULL,
+        NULL
+        },
+    [PLDM_UD_CHIP] = {
+        NULL,
+        NULL,
+        NULL
+        },
+    [PLDM_UD_FACTORY] = {
+        NULL,
+        NULL,
+        NULL
+        },
 };
 
 static void pldm_fwup_sta_chg(u8 cur_state)
@@ -61,10 +63,8 @@ static void pldm_fwup_sta_chg(u8 cur_state)
 static void pldm_fwup_firmware_process_quit(void)
 {
     if (g_pldm_fwup_info.cur_state >= PLDM_UD_DOWNLOAD) {
-        u8 comp_identifier = g_pldm_fwup_info.fw_new_ud_comp[gs_component_index - 1].comp_class_msg.comp_identifier;
-        pldm_fw_upgrade_cancer_callback *upgrade_cancer_callback = upgrade_funcs[comp_identifier].upgrade_cancer_callback_func;
-            if (upgrade_cancer_callback)
-                (*upgrade_cancer_callback)(&gs_store_data, 0);
+        u8 comp_identifier = g_pldm_fwup_info.fw_new_img_info.comp_identifier;
+        PLDM_FW_UPDATE_CANCER_CALLBACK(comp_identifier);
     }
 
     gs_progress_flag = 0;
@@ -73,8 +73,8 @@ static void pldm_fwup_firmware_process_quit(void)
     gs_id = 1;
     cm_memset(&gs_fw_data_buf, 0, 6);
     cm_memset(&gs_pkg_data_buf, 0, 6);
-
-    gs_component_index = 0;
+    cm_memset(&g_pldm_fwup_info.fw_new_img_info, 0, sizeof(g_pldm_fwup_info.fw_new_img_info));
+    cm_memset(&g_pldm_fwup_info.fw_new_set_info, 0, sizeof(g_pldm_fwup_info.fw_new_set_info));
 
     gs_getpackagedata_progress = 0;
     gs_want_to_end_update = 0;
@@ -83,7 +83,6 @@ static void pldm_fwup_firmware_process_quit(void)
     gs_requestfwdata_once_size = 0;
     gs_event_id = UNKNOWN;
     g_pldm_fwup_info.update_mode = NON_UPDATE_MODE;
-    CM_PLDM_FWUP_END_UPDATE(log_filter_temp);
 }
 
 static void pldm_fwup_component_process_quit(void)
@@ -97,20 +96,17 @@ static void pldm_fwup_component_process_quit(void)
     gs_data_transfer_handle = 0;
     gs_requestfwdata_once_size = g_pldm_fwup_info.max_transfer_size;
     gs_event_id = UNKNOWN;
-    u8 comp_identifier = g_pldm_fwup_info.fw_new_ud_comp[gs_component_index - 1].comp_class_msg.comp_identifier;
-    pldm_fw_upgrade_cancer_callback *upgrade_cancer_callback = upgrade_funcs[comp_identifier].upgrade_cancer_callback_func;
-    if (upgrade_cancer_callback)
-        (*upgrade_cancer_callback)(&gs_store_data, 0);
-    CM_PLDM_FWUP_END_UPDATE(log_filter_temp);
+    u8 comp_identifier = g_pldm_fwup_info.fw_new_img_info.comp_identifier;
+    PLDM_FW_UPDATE_CANCER_CALLBACK(comp_identifier);
 }
 
 static void pldm_fwup_querydeviceidentifiers(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_query_dev_identifier_rsp_dat_t *rsp_dat = (pldm_query_dev_identifier_rsp_dat_t *)(pkt->rsp_buf);
 
-    rsp_dat->descriptor_cnt = 4;
+    rsp_dat->descriptor_cnt = 5;
     rsp_dat->descriptor.init_type = PLDM_PCI_VENDOR_ID;                                                           /* PCI Vendor ID */
-    rsp_dat->descriptor.init_len  = sizeof(rsp_dat->descriptor.init_type);
+    rsp_dat->descriptor.init_len  = sizeof(rsp_dat->descriptor.init_data);
     rsp_dat->descriptor.init_data = 0x8086;                                                                       /* 0x8086 */
 
     rsp_dat->descriptor.add_descriptor[0].add_type = PLDM_PCI_DEV_ID;
@@ -137,47 +133,62 @@ static void pldm_fwup_querydeviceidentifiers(protocol_msg_t *pkt, int *pkt_len)
 static void pldm_fwup_getfirmwareparameters(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_get_fw_param_rsp_dat_t *rsp_dat = (pldm_get_fw_param_rsp_dat_t *)(pkt->rsp_buf);
-    u8 comp_identifier[] = {PLDM_UD_SLOT, PLDM_UD_CHIP, PLDM_UD_FACTORY};
-    /*  18-character ASCII-encoded buffer as CCCCCCCC.SSSSSSSS<nul>, 
-        where CCCCCCCC and SSSSSSSS are the 32-bit ComponentComparisonStamp and security revision (lad_srev) respectively, 
-        rendered in hex with leading zeros as needed, terminated by a null byte. (E810)*/
-    char *comp_ver_str[] = {"CCCCCCCC.SSSSSSSS", "CCCCCCCC.SSSSSSSS", "CCCCCCCC.SSSSSSSS"};
-    char *comp_img_set_ver_str = "N:nnnnnnnnO:ooooooooT:tttttttttt";
     /* BIT2 : Device host functionality will be reduced, perhaps becoming inaccessible, during Firmware Update. */
-    rsp_dat->cap_during_ud = CBIT(2);
-    rsp_dat->comp_cnt = 3;                                                                   /* SLOT, CHIP, FACTORY */
-    rsp_dat->actv_comp_img_set_ver_str_type_and_len.comp_img_set_ver_str_type = PLDM_UD_TYPE_ASCII;
-    rsp_dat->actv_comp_img_set_ver_str_type_and_len.comp_img_set_ver_str_len = 32;
+    rsp_dat->cap_during_ud = CBIT(2) | CBIT(3) | CBIT(1);       // bit8
+    rsp_dat->actv_comp_img_set_ver_str_type_and_len = g_pldm_fwup_info.fw_active_set_info.comp_img_set_ver_str_type_and_len;
+    u32 str_len = rsp_dat->actv_comp_img_set_ver_str_type_and_len.len;
+    cm_memcpy(rsp_dat->comp_img_set_ver_str, g_pldm_fwup_info.fw_active_set_info.comp_img_ver_str, str_len);
 
-    rsp_dat->pending_comp_img_set_ver_str_type_and_len.comp_img_set_ver_str_type = PLDM_UD_TYPE_ASCII;
-    rsp_dat->pending_comp_img_set_ver_str_type_and_len.comp_img_set_ver_str_len = 32;
+    u32 offset = str_len;
+    if (g_pldm_fwup_info.pending_img_state) {
+        rsp_dat->pending_comp_img_set_ver_str_type_and_len = g_pldm_fwup_info.fw_pending_set_info.comp_img_set_ver_str_type_and_len;
+        str_len = rsp_dat->pending_comp_img_set_ver_str_type_and_len.len;
+        cm_memcpy(&rsp_dat->comp_img_set_ver_str[offset], g_pldm_fwup_info.fw_pending_set_info.comp_img_ver_str, str_len);
+        offset += str_len;
+    } else {
+        rsp_dat->pending_comp_img_set_ver_str_type_and_len.type = PLDM_UD_TYPE_UNKNOW;
+        rsp_dat->pending_comp_img_set_ver_str_type_and_len.len = 0;
+    }
 
-    cm_memcpy(rsp_dat->comp_img_set_ver_str.actv_comp_img_set_ver_str, comp_img_set_ver_str, 32);
-    cm_memcpy(rsp_dat->comp_img_set_ver_str.pending_comp_img_set_ver_str, comp_img_set_ver_str, 32);
+    pldm_fwup_comp_param_table_t *comp_parm_table = (pldm_fwup_comp_param_table_t *)&(rsp_dat->comp_img_set_ver_str[offset]);
+    for (u8 i = 0; i <= PLDM_UD_FACTORY; i++) {
+        if (((g_pldm_fwup_info.active_img_state >> i) & 0x1) == 0)
+            continue;
 
-    for (u8 i = 0; i < rsp_dat->comp_cnt; i++) {
-        rsp_dat->comp_param_table[i].comp_class_msg.comp_classification = PLDM_UD_SW_BUNDLE_CLASSIFICATION;
-        rsp_dat->comp_param_table[i].comp_class_msg.comp_identifier = comp_identifier[i];
-        rsp_dat->comp_param_table[i].comp_class_msg.comp_classification_idx = 0;                  /* not used */
+        rsp_dat->comp_cnt++;
+        comp_parm_table->comp_class_msg.comp_classification = g_pldm_fwup_info.fw_cur_img_info[i].comp_classification;  /* DSP0267 953-959*/
+        comp_parm_table->comp_class_msg.comp_identifier = g_pldm_fwup_info.fw_cur_img_info[i].comp_identifier;
+        comp_parm_table->comp_class_msg.comp_classification_idx = g_pldm_fwup_info.fw_cur_img_info[i].comp_classification_idx;
 
         /* When ComponentOptions bit 1 is not set, this field should use the value of 0xFFFFFFFF. */
-        rsp_dat->comp_param_table[i].actv_comp_ver_msg.comp_comparison_stamp = 0xFFFFFFFF;
-        rsp_dat->comp_param_table[i].actv_comp_ver_msg.comp_ver_str_type = PLDM_UD_TYPE_ASCII;
-        rsp_dat->comp_param_table[i].actv_comp_ver_msg.comp_ver_str_len = 18;
-        cm_memset(rsp_dat->comp_param_table[i].actv_comp_release_date, 0, 8);
+        comp_parm_table->actv_comp_ver_msg.comp_comparison_stamp = 0x0; // If the firmware component does not provide a component comparison stamp, this value should be set to 0x00000000
+        comp_parm_table->actv_comp_ver_msg.comp_ver_str_type = g_pldm_fwup_info.fw_cur_img_info[i].comp_ver_str_type;
+        comp_parm_table->actv_comp_ver_msg.comp_ver_str_len = g_pldm_fwup_info.fw_cur_img_info[i].comp_ver_str_len;
+        cm_memset(comp_parm_table->actv_comp_release_date, 0, 8);
+        u8 *component_ver_str = comp_parm_table->comp_ver_str;
+        cm_memcpy(component_ver_str, g_pldm_fwup_info.fw_cur_img_info[i].comp_ver_str, g_pldm_fwup_info.fw_cur_img_info[i].comp_ver_str_len);
+        offset += (sizeof(pldm_fwup_comp_param_table_t) + g_pldm_fwup_info.fw_cur_img_info[i].comp_ver_str_len);
+        // rsp_data_len += ((sizeof(rsp_dat->comp_param_table[i].actv_comp_release_date) + rsp_dat->comp_param_table[i].pending_comp_ver_msg.comp_ver_str_len) * 2);
 
-        rsp_dat->comp_param_table[i].pending_comp_ver_msg.comp_comparison_stamp = 0xFFFFFFFF;
-        rsp_dat->comp_param_table[i].pending_comp_ver_msg.comp_ver_str_type = PLDM_UD_TYPE_ASCII;
-        rsp_dat->comp_param_table[i].pending_comp_ver_msg.comp_ver_str_len = 18;
-        cm_memset(rsp_dat->comp_param_table[i].pending_comp_release_date, 0, 8);
+        comp_parm_table->pending_comp_ver_msg.comp_comparison_stamp = 0x0;
+        cm_memset(comp_parm_table->pending_comp_release_date, 0, 8);
+        if ((g_pldm_fwup_info.pending_img_state >> i) & 0x1) {
+            comp_parm_table->pending_comp_ver_msg.comp_ver_str_type = g_pldm_fwup_info.fw_pending_img_info[i].comp_ver_str_type;
+            comp_parm_table->pending_comp_ver_msg.comp_ver_str_len = g_pldm_fwup_info.fw_pending_img_info[i].comp_ver_str_len;
+            cm_memcpy(&component_ver_str[g_pldm_fwup_info.fw_cur_img_info[i].comp_ver_str_len], g_pldm_fwup_info.fw_pending_img_info[i].comp_ver_str, g_pldm_fwup_info.fw_pending_img_info[i].comp_ver_str_len);
+            offset += g_pldm_fwup_info.fw_pending_img_info[i].comp_ver_str_len;
+        } else {
+            comp_parm_table->pending_comp_ver_msg.comp_ver_str_type = PLDM_UD_TYPE_UNKNOW;
+            comp_parm_table->pending_comp_ver_msg.comp_ver_str_len = 0;
+        }
 
-        rsp_dat->comp_param_table[i].comp_actv_meth = CBIT(1);                           /* “DC power cycle” */
+        comp_parm_table->comp_actv_meth = g_pldm_fwup_info.fw_cur_img_info[i].comp_actv_meth;  // TBD
+
         /* Bit 0 = 1: Firmware Device performs an ‘auto-apply’ during transfer phase and apply step will be completed immediately. */
-        rsp_dat->comp_param_table[i].cap_during_ud = CBIT(0);
-        cm_memcpy(rsp_dat->comp_param_table[i].comp_ver_str.actv_comp_ver_str, comp_ver_str[i], 18);
-        cm_memcpy(rsp_dat->comp_param_table[i].comp_ver_str.pending_comp_ver_str, comp_ver_str[i], 18);
+        comp_parm_table->cap_during_ud = CBIT(0);
+        comp_parm_table = (pldm_fwup_comp_param_table_t *)&(rsp_dat->comp_img_set_ver_str[offset]);
     }
-    *pkt_len += sizeof(pldm_get_fw_param_rsp_dat_t) + sizeof(pldm_fwup_comp_param_table_t) * rsp_dat->comp_cnt;
+    *pkt_len += sizeof(pldm_get_fw_param_rsp_dat_t) + offset;
 }
 
 static void pldm_fwup_requestupdate(protocol_msg_t *pkt, int *pkt_len)
@@ -189,14 +200,15 @@ static void pldm_fwup_requestupdate(protocol_msg_t *pkt, int *pkt_len)
 
     if (g_pldm_fwup_info.update_mode == UPDATING_MODE || CM_IS_AT_UPGRADE_MODE()) {
         rsp_hdr->cpl_code = PLDM_UD_ALREADY_IN_UPDATE_MODE;
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
         return;
     }
 
     g_pldm_fwup_info.max_transfer_size = MIN(PLDM_RECVBUF_MAX_SIZE, req_dat->max_transfer_size);    /* max transfer size */
     g_pldm_fwup_info.update_mode = UPDATING_MODE;
 
-    cm_memcpy(&(g_pldm_fwup_info.fw_new_ud_comp_img.comp_img_set_ver_str_type_and_len), &(req_dat->comp_img_set_ver_str_type_and_len), \
-    sizeof(pldm_comp_img_set_ver_str_type_and_len_t) + req_dat->comp_img_set_ver_str_type_and_len.comp_img_set_ver_str_len);
+    cm_memcpy(&(g_pldm_fwup_info.fw_new_set_info.comp_img_set_ver_str_type_and_len), &(req_dat->comp_img_set_ver_str_type_and_len), \
+    sizeof(pldm_comp_img_set_ver_str_type_and_len_t) + req_dat->comp_img_set_ver_str_type_and_len.len);
 
     rsp_dat->fd_metadata_len = 0;
     if (req_dat->pkt_data_len != 0) {
@@ -215,8 +227,6 @@ static void pldm_fwup_requestupdate(protocol_msg_t *pkt, int *pkt_len)
 
     g_pldm_fwup_info.hw_id = pkt->mctp_hw_id;
     g_pldm_fwup_info.ua_eid = req_mctp_hdr->src_eid;
-    log_filter_temp = CM_LOG_FILTER;
-    CM_PLDM_FWUP_START_UPDATE();
     gs_cal_times.enter_upgrade_time = CM_GET_CUR_TIMER_MS();
 }
 
@@ -235,7 +245,7 @@ static void pldm_fwup_getpackagedata_recv(protocol_msg_t *pkt, int *pkt_len)
     pldm_fwup_get_pkt_data_rsp_dat_t *rsp_dat = (pldm_fwup_get_pkt_data_rsp_dat_t *)(pkt->req_buf);
     if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
         gs_data_transfer_handle = 0;
-        LOG("pldm_fwup_getpackagedata_recv err, cpl_code : 0x%x !", rsp_dat->cpl_code);
+        LOG("cpl_code : %#x", rsp_dat->cpl_code);
         return;
     }
 
@@ -256,7 +266,7 @@ static void pldm_fwup_getpackagedata_recv(protocol_msg_t *pkt, int *pkt_len)
         gs_data_transfer_handle = rsp_dat->next_data_transfer_handle;
         pldm_fwup_getpackagedata_send();
     }
-    /* 考虑不接受UA传输的packsgedata，则置位gs_want_to_end_update，在下一个cmd的rsp_msg返回PACKAGE_DATA_ERROR并退出更新模式 */
+    /* 如果接收的packagedata内容错误，或者FD不接受UA传输的packagedata，则置位gs_want_to_end_update，在下一个cmd的rsp_msg返回PACKAGE_DATA_ERROR并退出更新模式 */
 }
 
 static void pldm_fwup_passcomponenttable(protocol_msg_t *pkt, int *pkt_len)
@@ -268,25 +278,25 @@ static void pldm_fwup_passcomponenttable(protocol_msg_t *pkt, int *pkt_len)
     /* The FD/FDP only expects this command in LEARN COMPONENTS state. */
     if ((gs_event_id == PLDM_UD_ENTER_UD_WITH_PKTDATA && gs_getpackagedata_progress == 0) || (g_pldm_fwup_info.cur_state != PLDM_UD_LEARN_COMP)) {
         rsp_hdr->cpl_code = PLDM_UD_INVALID_STATE_FOR_COMMAND;
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
         return;
     }
 
     if (gs_want_to_end_update == 1) {
-        rsp_hdr->cpl_code = PLDM_UD_PACKAGE_DATA_ERROR;
-        pldm_fwup_firmware_process_quit();
+        rsp_hdr->cpl_code = PLDM_UD_PACKAGEDATA_ERROR;
+        gs_event_id = PLDM_UD_PACKAGEDATA_ERROR;
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
         return;
     }
 
-    cm_memcpy(&g_pldm_fwup_info.fw_new_ud_comp[gs_component_index], &(req_dat->comp_class_msg), \
+    cm_memcpy(&g_pldm_fwup_info.fw_new_img_info, &(req_dat->comp_class_msg), \
     sizeof(pldm_fwup_comp_class_msg_t) + sizeof(pldm_fwup_comp_ver_msg_t) + req_dat->comp_ver_msg.comp_ver_str_len);
-    gs_component_index++;
 
     rsp_dat->comp_rsp = 0;
     rsp_dat->comp_rsp_code = 0;
 
     if (req_dat->transfer_flag == PLDM_TRANSFER_FLAG_END || req_dat->transfer_flag == PLDM_TRANSFER_FLAG_START_AND_END) {
         gs_event_id = PLDM_UD_PASSCOMP_END;
-        LOG("component_index : %d", gs_component_index);
     }
 
     *pkt_len += sizeof(pldm_fwup_pass_comp_table_rsp_dat_t);
@@ -301,6 +311,7 @@ static void pldm_fwup_updatecomponent(protocol_msg_t *pkt, int *pkt_len)
     /* The FD/FDP only expects this command in READY XFER state. */
     if (g_pldm_fwup_info.cur_state != PLDM_UD_READY_XFER) {
         rsp_hdr->cpl_code = PLDM_UD_INVALID_STATE_FOR_COMMAND;
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
         return;
     }
 
@@ -308,24 +319,21 @@ static void pldm_fwup_updatecomponent(protocol_msg_t *pkt, int *pkt_len)
     rsp_dat->comp_compatibility_rsp_code = 0;        /* No response code – used when component can be updated. */
 
     /* 组件信息验证 */
-    int idx = 0;
-    for (; idx < gs_component_index; idx++) {
-        if (g_pldm_fwup_info.fw_new_ud_comp[idx].comp_class_msg.comp_classification_idx == req_dat->comp_class_msg.comp_classification_idx) {
-            u32 new_ver_str_len = g_pldm_fwup_info.fw_new_ud_comp[idx].comp_ver_msg.comp_ver_str_type * g_pldm_fwup_info.fw_new_ud_comp[idx].comp_ver_msg.comp_ver_str_len;
-            u32 req_ver_str_len = req_dat->comp_ver_str_type * req_dat->comp_ver_str_type_len;
-            u32 stamp_result = g_pldm_fwup_info.fw_new_ud_comp[idx].comp_ver_msg.comp_comparison_stamp != req_dat->comp_comparison_stamp;
-            int version_result = cm_memcmp(g_pldm_fwup_info.fw_new_ud_comp[idx].comp_ver_str, req_dat->comp_ver_str, new_ver_str_len);
-            if ((stamp_result) || (new_ver_str_len != req_ver_str_len) || version_result) {
-                rsp_dat->comp_compatibility_rsp = 1;
-                rsp_dat->comp_compatibility_rsp_code = 3;   // Invalid component comparison stamp or version.
-            }
-            break;
-        }
-    }
-    if (idx == gs_component_index) {
-        rsp_dat->comp_compatibility_rsp = 1;
-        rsp_dat->comp_compatibility_rsp_code = 8;       // Component cannot be updated as an Incomplete Component Image Set was received from the PassComponentTable commands
-    }
+    // if (g_pldm_fwup_info.fw_new_img_info.comp_identifier == req_dat->comp_class_msg.comp_identifier) {
+    //     u32 new_ver_str_len = g_pldm_fwup_info.fw_new_img_info.comp_ver_str_len;
+    //     u32 req_ver_str_len = req_dat->comp_ver_str_type_len;
+    //     u32 str_compare_len = MIN(new_ver_str_len, req_ver_str_len);
+    //     int error_result = (new_ver_str_len != req_ver_str_len);
+    //     error_result |= (g_pldm_fwup_info.fw_new_img_info.comp_ver_str_type != req_dat->comp_ver_str_type);
+    //     error_result |= cm_memcmp(g_pldm_fwup_info.fw_new_img_info.comp_ver_str, req_dat->comp_ver_str, str_compare_len);
+    //     if (error_result) {
+    //         rsp_dat->comp_compatibility_rsp = 1;        // Component will not be updated
+    //         rsp_dat->comp_compatibility_rsp_code = 3;   // Invalid component comparison stamp or version.
+    //     }
+    // } else {
+    //     rsp_dat->comp_compatibility_rsp = 1;            // Component will not be updated
+    //     rsp_dat->comp_compatibility_rsp_code = 8;       // Component cannot be updated as an Incomplete Component Image Set was received from the PassComponentTable commands
+    // }
 
     rsp_dat->ud_option_flag_en = 0;                     /* Force Update of component. If Bit 0 is set, firmware should allow downgrade only up to security version.*/
     rsp_dat->estimated_time_before_send_req_fw_data = 0;
@@ -358,60 +366,58 @@ static void pldm_fwup_transfercpl_send(u8 result)
 }
 
 static u8 transfer_result = 0;
-FILE *pd = NULL;
 static void pldm_fwup_requestfwdata_recv(protocol_msg_t *pkt, int *pkt_len)
 {
     g_pldm_need_rsp = 0;
     pldm_fwup_req_fw_data_rsp_dat_t *rsp_dat = (pldm_fwup_req_fw_data_rsp_dat_t *)(pkt->req_buf);
-    if (rsp_dat->cpl_code == MCTP_COMMAND_SUCCESS) {
-        gs_id++;
-        int upgrade_state = 0;
-        u8 comp_identifier = g_pldm_fwup_info.fw_new_ud_comp[gs_component_index - 1].comp_class_msg.comp_identifier;
-        pldm_fw_upgrade_callback *upgrade_callback = upgrade_funcs[comp_identifier].upgrade_callback_func;
-        if (g_pldm_fwup_info.max_transfer_size != PLDM_RECVBUF_MAX_SIZE) {
-            u16 need_len = PLDM_RECVBUF_MAX_SIZE - gs_fw_data_buf.len;
-            u16 cpy_len = MIN(gs_requestfwdata_once_size, need_len);
-            u16 remain_len = (gs_requestfwdata_once_size - need_len) ? gs_requestfwdata_once_size - need_len : 0;
-            cm_memcpy(&(gs_fw_data_buf.data[gs_fw_data_buf.len]), rsp_dat->comp_img_option, cpy_len);
-            gs_fw_data_buf.len += cpy_len;
-            if (gs_fw_data_buf.len == PLDM_RECVBUF_MAX_SIZE) {
-                if (upgrade_callback)
-                    upgrade_state = (*upgrade_callback)(&gs_store_data, gs_id, gs_fw_data_buf.data, PLDM_RECVBUF_MAX_SIZE);
-                if (remain_len)
-                    cm_memcpy(gs_fw_data_buf.data, (u8 *)&(rsp_dat->comp_img_option[need_len]), remain_len);
-                gs_fw_data_buf.len = remain_len;
-                // pd = fopen("upgrade_pldm_fwup_slot.img", "rb");
-                fwrite(gs_fw_data_buf.data, sizeof(u8), PLDM_RECVBUF_MAX_SIZE, pd);
-            }
-        } else {
-            if (upgrade_callback)
-                upgrade_state = (*upgrade_callback)(&gs_store_data, gs_id, (u8 *)(rsp_dat->comp_img_option), PLDM_RECVBUF_MAX_SIZE);
-            // pd = fopen("upgrade_pldm_fwup_slot.img", "rb");
-            fwrite(rsp_dat->comp_img_option, sizeof(u8), PLDM_RECVBUF_MAX_SIZE, pd);
-        }
-        upgrade_state = (upgrade_state > 0) ? -upgrade_state : upgrade_state;
-        if (upgrade_state < 0) {  // flash erase failed
-            transfer_result = 0x0D; // The FD/FDP has aborted the transfer due to an issue with storing the firmware data on the device.
+    if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
+        LOG("cpl_code : %#x", rsp_dat->cpl_code);
+        return;
+    }
+
+    sts_t upgrade_state = 0;
+
+    u8 comp_identifier = g_pldm_fwup_info.fw_new_img_info.comp_identifier;
+    u16 free_len = PLDM_RECVBUF_MAX_SIZE - gs_fw_data_buf.len;
+    u16 cpy_len = MIN(gs_requestfwdata_once_size, free_len);
+    u16 remain_len = (gs_requestfwdata_once_size > free_len) ? gs_requestfwdata_once_size - free_len : 0;
+    u8 *data_ptr = NULL;
+    if (g_pldm_fwup_info.max_transfer_size != PLDM_RECVBUF_MAX_SIZE) {
+        cm_memcpy(&(gs_fw_data_buf.data[gs_fw_data_buf.len]), rsp_dat->comp_img_option, cpy_len);
+        data_ptr = gs_fw_data_buf.data;
+    } else {
+        data_ptr = rsp_dat->comp_img_option;
+    }
+
+    gs_fw_data_buf.len += cpy_len;
+
+    if (gs_fw_data_buf.len == PLDM_RECVBUF_MAX_SIZE) {
+        upgrade_state = PLDM_FW_UPDATE_CALLBACK(comp_identifier, data_ptr);
+        fwrite(data_ptr, sizeof(u8), PLDM_RECVBUF_MAX_SIZE, pd);
+        if (upgrade_state != 0x1) {  // flash erase failed
+            transfer_result = 0x0D;  // The FD/FDP has aborted the transfer due to an issue with storing the firmware data on the device.
             pldm_fwup_transfercpl_send(transfer_result);
             return;
         }
+        if (remain_len)
+            cm_memcpy(gs_fw_data_buf.data, &(rsp_dat->comp_img_option[cpy_len]), remain_len);
+        gs_fw_data_buf.len = remain_len;
+    }
 
-        gs_data_transfer_handle += gs_requestfwdata_once_size;
-        u32 remain_data_len = gs_fw_data_buf.pkt_data_len - gs_data_transfer_handle;
-        gs_requestfwdata_once_size = (remain_data_len <= g_pldm_fwup_info.max_transfer_size) ? remain_data_len : g_pldm_fwup_info.max_transfer_size;
-        if (gs_data_transfer_handle >= gs_fw_data_buf.pkt_data_len) {
-            /*  1 : Transfer has completed with error as the image received is corrupt.
-                0 : Transfer has completed without error, no additional information on why is provided with this code. */
-            transfer_result = (upgrade_state < 0) ? 1 : 0;
-            pldm_fwup_transfercpl_send(transfer_result);
-            gs_data_transfer_handle = 0;
-            cm_memset(&gs_fw_data_buf, 0, 6);
-            fclose(pd);
-        } else {
-            pldm_fwup_requestfwdata_send();
-        }
+    gs_data_transfer_handle += gs_requestfwdata_once_size;
+
+    if (gs_data_transfer_handle >= gs_fw_data_buf.pkt_data_len) {
+        /*  1 : Transfer has completed with error as the image received is corrupt.
+            0 : Transfer has completed without error, no additional information on why is provided with this code. */
+        transfer_result = 0;
+        pldm_fwup_transfercpl_send(transfer_result);
+        gs_data_transfer_handle = 0;
+        cm_memset(&gs_fw_data_buf, 0, 6);
+        fclose(pd);
     } else {
-        LOG("pldm_fwup_requestfwdata_recv err, cpl_code : 0x%x !", rsp_dat->cpl_code);
+        u32 remain_data_len = gs_fw_data_buf.pkt_data_len - gs_data_transfer_handle;
+        gs_requestfwdata_once_size = (remain_data_len < g_pldm_fwup_info.max_transfer_size) ? remain_data_len : g_pldm_fwup_info.max_transfer_size;
+        pldm_fwup_requestfwdata_send();
     }
 }
 
@@ -430,9 +436,11 @@ static void pldm_fwup_applycpl_send(void)
 {
     g_pldm_need_rsp = 0;
     pldm_fwup_apply_cpl_req_dat_t req_dat = {0};
-    req_dat.apply_result = 0;                                              /* Apply has completed without error. */
-    req_dat.comp_actv_meth_modification = CBIT(1);                         /* DC power cycle */
 
+    /* 0x01:Apply has completed with success and has modified its activation method. Values shall be provided in the ComponentActivationMethodsModifications field */
+    req_dat.apply_result = 0x01;
+
+    req_dat.comp_actv_meth_modification = PLDM_IMG_ACTIVE_METHOD;
     pldm_msg_send((u8 *)&req_dat, sizeof(pldm_fwup_apply_cpl_req_dat_t), MCTP_PLDM_UPDATE, 0x18, g_pldm_fwup_info.hw_id, g_pldm_fwup_info.ua_eid);
 }
 
@@ -440,7 +448,7 @@ static void pldm_fwup_transfercpl_recv(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_fwup_transfer_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_transfer_cpl_rsp_dat_t *)(pkt->req_buf);
     if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
-        LOG("transfer_cpl send err, cpl_code : 0x%x !", rsp_dat->cpl_code);
+        LOG("cpl_code : %#x", rsp_dat->cpl_code);
     } else {
         if (!transfer_result)
             gs_event_id = PLDM_UD_TRANSFER_PASS;
@@ -452,7 +460,7 @@ static void pldm_fwup_verifycpl_recv(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_fwup_verify_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_verify_cpl_rsp_dat_t *)(pkt->req_buf);
     if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
-        LOG("verify_cpl send err, cpl_code : 0x%x !", rsp_dat->cpl_code);
+        LOG("cpl_code : %#x", rsp_dat->cpl_code);
     } else {
         if (!verify_result)
             gs_event_id = PLDM_UD_VERIFY_PASS;
@@ -460,23 +468,29 @@ static void pldm_fwup_verifycpl_recv(protocol_msg_t *pkt, int *pkt_len)
     }
 }
 
+static void pldm_fwup_verify_process(void)
+{
+    u8 comp_identifier = g_pldm_fwup_info.fw_new_img_info.comp_identifier;
+    sts_t upgrade_result = PLDM_FW_UPDATE_COMPLETE_CALLBACK(comp_identifier);
+    verify_result = 0x0;
+    if (upgrade_result != 0x1) {
+        LOG("pldm firmware update img crc error");
+        verify_result = 0x01;   // Verify has completed with a verification failure – FD will not transition to APPLY state to apply the component
+    }
+    pldm_fwup_verifycpl_send();
+}
+
 static void pldm_fwup_applycpl_recv(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_fwup_apply_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_apply_cpl_rsp_dat_t *)(pkt->req_buf);
     if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
-        LOG("apply_cpl send err, cpl_code : 0x%x !", rsp_dat->cpl_code);
+        LOG("cpl_code : %#x", rsp_dat->cpl_code);
     } else {
         gs_event_id = PLDM_UD_APPLY_PASS;
         gs_progress_flag = 1;
     }
 }
 
-static void pldm_fwup_activate_progress(void)
-{
-    /* Activate op */
-    gs_event_id = PLDM_UD_ACTIVATE_DONE;
-    gs_progress_flag = 1;
-}
 
 static void pldm_fwup_activatefw(protocol_msg_t *pkt, int *pkt_len)
 {
@@ -486,35 +500,50 @@ static void pldm_fwup_activatefw(protocol_msg_t *pkt, int *pkt_len)
 
     if (g_pldm_fwup_info.cur_state != PLDM_UD_READY_XFER) {
         rsp_hdr->cpl_code = PLDM_UD_INVALID_STATE_FOR_COMMAND;
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
         goto L_ERR;
     }
 
     if (gs_event_id != PLDM_UD_APPLY_PASS) {
         rsp_hdr->cpl_code = PLDM_UD_INCOMPLETE_UPDATE;
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
         goto L_ERR;
     }
 
-    /* 如果amber不支持自包含激活 */
-    if (req_dat->self_contained_actv_req == true) { 
+    /* amber no support self_contain_active */
+    if (req_dat->self_contained_actv_req == TRUE) {    /* 如果BMC想自激活，自复位？ */
         rsp_hdr->cpl_code = PLDM_UD_SELF_CONTAINED_ACTIVATION_NOT_PERMITTED;
-        g_pldm_fwup_info.cur_state = PLDM_UD_ACTIVATE;
-        pldm_fwup_activate_progress();
-        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
     }
 
-    /* 如果amber支持自包含激活 */
-    // if (req_dat->self_contained_actv_req == true) { 
-    //     /* 切换到active状态，自包含激活，激活成功后然后切换到IDLE状态，退出更新模式， */
-    //     gs_event_id = PLDM_UD_ENTER_ACTIVATE;
-    // }
-
+    gs_event_id = PLDM_UD_ACTIVATE_DONE;
+    gs_progress_flag = 1;
     rsp_dat->estimated_time_for_self_contained_actv = 0;
-    *pkt_len += sizeof(pldm_fwup_actv_fw_rsp_dat_t);
 
-    u8 comp_identifier = g_pldm_fwup_info.fw_new_ud_comp[gs_component_index - 1].comp_class_msg.comp_identifier;
-    pldm_fw_upgrade_complete_callback *upgrade_complete_callback = upgrade_funcs[comp_identifier].upgrade_complete_callback_func;
-    if (upgrade_complete_callback)
-        (*upgrade_complete_callback)(&gs_store_data, 0);
+    u8 comp_identifier = g_pldm_fwup_info.fw_new_img_info.comp_identifier;
+    cm_memcpy(&g_pldm_fwup_info.fw_pending_img_info[comp_identifier], &g_pldm_fwup_info.fw_new_img_info, sizeof(g_pldm_fwup_info.fw_new_img_info));
+    cm_memcpy(&g_pldm_fwup_info.fw_pending_set_info, &g_pldm_fwup_info.fw_new_set_info, sizeof(g_pldm_fwup_info.fw_new_set_info));
+    if (comp_identifier == PLDM_UD_SLOT) {
+        g_pldm_fwup_info.pending_img_state |= 1;
+    } else {
+        g_pldm_fwup_info.pending_img_state = (0x1 << comp_identifier);
+    }
+
+    pldm_fwup_comp_img_info_t fw_active_set_info = g_pldm_fwup_info.fw_active_set_info;
+    g_pldm_fwup_info.fw_active_set_info = g_pldm_fwup_info.fw_pending_set_info;
+    pldm_component_info_t fw_cur_img_info = g_pldm_fwup_info.fw_cur_img_info[comp_identifier];
+    g_pldm_fwup_info.fw_cur_img_info[comp_identifier] = g_pldm_fwup_info.fw_pending_img_info[comp_identifier];
+    u32 len = sizeof(u32) + sizeof(pldm_fwup_comp_img_info_t) + sizeof(pldm_component_info_t) * 3;
+    u32 active_img_state = g_pldm_fwup_info.active_img_state;
+    g_pldm_fwup_info.active_img_state = g_pldm_fwup_info.pending_img_state;
+    sts_t sta = CM_FALSH_WRITE(g_pldm_fwup_info.nvm_fwup_info_addr, &g_pldm_fwup_info.active_img_state, len);
+    if (sta != 0x1) {
+        LOG("flash write error");
+    }
+    g_pldm_fwup_info.fw_active_set_info = fw_active_set_info;
+    g_pldm_fwup_info.fw_cur_img_info[comp_identifier] = fw_cur_img_info;
+    g_pldm_fwup_info.active_img_state = active_img_state;
+
+    *pkt_len += sizeof(pldm_fwup_actv_fw_rsp_dat_t);
 L_ERR:
     return;
 }
@@ -560,6 +589,7 @@ static void pldm_fwup_getstatus(protocol_msg_t *pkt, int *pkt_len)
         rsp_dat->aux_state_status = 0x00;                   /* AuxState is In Progress or Success. */
     }
     rsp_dat->ud_option_flag_en = CBIT(0);
+    *pkt_len += sizeof(pldm_fwup_get_status_rsp_dat_t);
 }
 
 static void pldm_fwup_compupdate_cancel(protocol_msg_t *pkt, int *pkt_len)
@@ -570,6 +600,7 @@ static void pldm_fwup_compupdate_cancel(protocol_msg_t *pkt, int *pkt_len)
         gs_event_id = PLDM_UD_CANCEL_UD_COMP;
     } else {
         rsp_hdr->cpl_code = PLDM_UD_INVALID_STATE_FOR_COMMAND;
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
     }
 }
 
@@ -585,7 +616,7 @@ static void pldm_fwup_fwupdate_cancel(protocol_msg_t *pkt, int *pkt_len)
     *pkt_len += sizeof(pldm_fwup_cancel_ud_rsp_dat_t);
 }
 
-static pldm_cmd_func pldm_cmd_table[PLDM_FW_UPDATE_CMD] =
+static pldm_cmd_func pldm_update_cmd_table[PLDM_FW_UPDATE_CMD] =
 {
     pldm_unsupport_cmd,                           /* 0x00 */
     pldm_fwup_querydeviceidentifiers,             /* 0x01 */
@@ -620,17 +651,17 @@ static pldm_cmd_func pldm_cmd_table[PLDM_FW_UPDATE_CMD] =
 };
 
 /* DSP0267 Figure 8 – Firmware Device State Transition Diagram */
-pldm_fwup_state_transform_t pldm_fwup_transforms[] = {
+static pldm_fwup_state_transform_t pldm_fwup_transforms[] = {
     /* cur_state         event_id                      next_state          action */
     {PLDM_UD_IDLE,       PLDM_UD_ENTER_UD_WITH_PKTDATA,PLDM_UD_LEARN_COMP, pldm_fwup_getpackagedata_send},
     {PLDM_UD_IDLE,       PLDM_UD_ENTER_UD_NO_PKTDATA,  PLDM_UD_LEARN_COMP, NULL},
+    {PLDM_UD_LEARN_COMP, PLDM_UD_PACKAGEDATA_ERROR,    PLDM_UD_IDLE,       pldm_fwup_firmware_process_quit},
     {PLDM_UD_LEARN_COMP, PLDM_UD_PASSCOMP_END,         PLDM_UD_READY_XFER, NULL},
     {PLDM_UD_READY_XFER, PLDM_UD_UD_COMP_END,          PLDM_UD_DOWNLOAD,   pldm_fwup_requestfwdata_send},
-    {PLDM_UD_DOWNLOAD,   PLDM_UD_TRANSFER_PASS,        PLDM_UD_VERIFY,     pldm_fwup_verifycpl_send},
+    {PLDM_UD_DOWNLOAD,   PLDM_UD_TRANSFER_PASS,        PLDM_UD_VERIFY,     pldm_fwup_verify_process},
     {PLDM_UD_VERIFY,     PLDM_UD_VERIFY_PASS,          PLDM_UD_APPLY,      pldm_fwup_applycpl_send},
     {PLDM_UD_APPLY,      PLDM_UD_APPLY_PASS,           PLDM_UD_READY_XFER, NULL},
-    {PLDM_UD_READY_XFER, PLDM_UD_ENTER_ACTIVATE,       PLDM_UD_ACTIVATE,   pldm_fwup_activate_progress},
-    {PLDM_UD_ACTIVATE,   PLDM_UD_ACTIVATE_DONE,        PLDM_UD_IDLE,       pldm_fwup_firmware_process_quit},
+    {PLDM_UD_READY_XFER, PLDM_UD_ACTIVATE_DONE,        PLDM_UD_IDLE,       pldm_fwup_firmware_process_quit},    /* ACTIVATE -> IDLE (FD moves through ACTIVATE step to IDLE) */
 
     {PLDM_UD_LEARN_COMP, PLDM_UD_CANCEL_UD_OR_TIMEOUT, PLDM_UD_IDLE,       pldm_fwup_firmware_process_quit},
     {PLDM_UD_READY_XFER, PLDM_UD_CANCEL_UD_OR_TIMEOUT, PLDM_UD_IDLE,       pldm_fwup_firmware_process_quit},
@@ -667,7 +698,7 @@ void pldm_fwup_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
     pldm_cmd_func cmd_proc = NULL;
 
     if (cmd_code < PLDM_FW_UPDATE_CMD) {
-        cmd_proc = pldm_cmd_table[cmd_code];
+        cmd_proc = pldm_update_cmd_table[cmd_code];
     } else {
         cmd_proc = pldm_unsupport_cmd;
     }
@@ -676,6 +707,7 @@ void pldm_fwup_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
 
     if ((g_pldm_fwup_info.update_mode == NON_UPDATE_MODE) && (g_pldm_fwup_info.cur_state != PLDM_UD_IDLE)) {
         rsp_hdr->cpl_code = PLDM_UD_NOT_IN_UPDATE_MODE;
+        LOG("cpl_code : %#x, cur_state : %d", rsp_hdr->cpl_code, g_pldm_fwup_info.cur_state);
         return;
     }
     gs_cal_times.req_time = CM_GET_CUR_TIMER_MS();
@@ -691,6 +723,15 @@ void pldm_fwup_init(void)
     // g_pldm_fwup_info.cur_state = PLDM_UD_IDLE;
     // g_pldm_fwup_info.prev_state = PLDM_UD_IDLE;
     // g_pldm_fwup_info.update_mode = FALSE;
+
+    // pldm_nvm_hdr_info_t pldm_nvm_hdr;
+    // CM_PLDM_HDR_OFF_LOAD(pldm_nvm_hdr);
+
+    // pldm_data_hdr_t pldm_data_hdr = {0};
+    // CM_FLASH_READ(pldm_nvm_hdr.offset, (void *)&pldm_data_hdr, (sizeof(pldm_data_hdr_t) / sizeof(u32)));
+
+    // g_pldm_fwup_info.nvm_fwup_info_addr = pldm_nvm_hdr.offset + pldm_data_hdr.pldm_fwup_info_off + sizeof(pldm_data_hdr_t);
+    // CM_FLASH_READ(g_pldm_fwup_info.nvm_fwup_info_addr, (void *)&g_pldm_fwup_info.active_img_state, (sizeof(pldm_component_info_t) * 3 + sizeof(pldm_fwup_comp_img_info_t) + sizeof(u8) * 5) / sizeof(u32));
 }
 
 static void pldm_fwup_timeout_process(void)
@@ -714,6 +755,7 @@ static void pldm_fwup_timeout_process(void)
     }
     if (is_timeout) {
         gs_timeout_occur_flag = 1;
+        pldm_fwup_sta_chg(PLDM_UD_IDLE);
         pldm_fwup_firmware_process_quit();
     }
 }

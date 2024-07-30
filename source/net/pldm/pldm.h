@@ -29,6 +29,26 @@ typedef struct {
     u8 cmd_code;
     u8 cpl_code;
 } pldm_response_t;
+
+typedef struct {
+    u32 offset;
+    u32 len;
+} pldm_nvm_hdr_info_t;
+
+typedef struct {
+    u32 pldm_pdr_off;
+    u32 pldm_pdr_size;
+
+    u32 pldm_fwup_info_off;
+    u32 pldm_fwup_info_size;
+
+    u32 pldm_redfish_dict_off;
+    u32 pldm_redfish_dict_size;
+
+    u32 pldm_redfish_schema_off;
+    u32 pldm_redfish_schema_size;
+} pldm_data_hdr_t;
+
 #pragma pack()
 
 typedef enum {

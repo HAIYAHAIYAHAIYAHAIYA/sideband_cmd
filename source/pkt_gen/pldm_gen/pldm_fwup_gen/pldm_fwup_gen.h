@@ -7,7 +7,7 @@
 #define PLDM_FWUP_CMD(num)                  pldm_fwup_gen_cmd_ ## num
 
 #define PLDM_FWUP_IMG_NAME                  "upgrade_pldm_fwup_slot.bin"
-#define PLDM_FWUP_GEN_RECVBUF_MAX_SIZE      (1024)
+#define PLDM_FWUP_GEN_RECVBUF_MAX_SIZE      (666)
 
 typedef enum {
     PLDM_FWUP_GEN_IDLE = 0,

@@ -21,10 +21,44 @@
 #define PLDM_PCI_SUBSYS_ID_REG                      (PLDM_PCI_ID_BASE + 0x2e)
 #define PLDM_PCI_REVISION_ID_REG                    (PLDM_PCI_ID_BASE + 0x8)
 
+#define PLDM_FWUP_RECV_IMG_NAME                     "recv_upgrade_slot.bin"
+
 #define UPDATING_MODE                               TRUE
 #define NON_UPDATE_MODE                             FALSE
+#define PLDM_IMG_ACTIVE_METHOD                      (CBIT(3) | CBIT(4) | CBIT(5))     /* system_reboot && DC-power && AC_power*/
+/* 是否支持system_reboot存疑？ */
 
-#define PLDM_FWUP_RECV_IMG_NAME                  "pldm_fwup_slot.bin"
+#define PLDM_FW_UPDATE_CALLBACK(idx, data)   ({  \
+                                        pldm_fw_upgrade_callback upgrade_callback = upgrade_funcs[idx].upgrade_callback_func;  \
+                                        sts_t update_result = 0x1;  \
+                                        if (upgrade_callback) {      \
+                                            CM_PLDM_FWUP_START_UPDATE();    \
+                                            update_result = upgrade_callback((void *)gs_store_data, gs_id, data, PLDM_RECVBUF_MAX_SIZE);    \
+                                            gs_id++; \
+                                            CM_PLDM_FWUP_END_UPDATE();      \
+                                        }   \
+                                        update_result;   \
+                                    })
+
+#define PLDM_FW_UPDATE_COMPLETE_CALLBACK(idx)   ({  \
+                                                    pldm_fw_upgrade_complete_callback upgrade_complete_callback = upgrade_funcs[idx].upgrade_complete_callback_func;  \
+                                                    sts_t update_result = 0x1;  \
+                                                    if (upgrade_complete_callback) {      \
+                                                        CM_PLDM_FWUP_START_UPDATE();    \
+                                                        update_result = upgrade_complete_callback((void *)gs_store_data, gs_fw_data_buf.pkt_data_len);    \
+                                                        CM_PLDM_FWUP_END_UPDATE();      \
+                                                    }   \
+                                                    update_result;  \
+                                                })
+
+#define PLDM_FW_UPDATE_CANCER_CALLBACK(idx) ({  \
+                                                pldm_fw_upgrade_cancer_callback upgrade_cancer_callback = upgrade_funcs[idx].upgrade_cancer_callback_func;  \
+                                                if (upgrade_cancer_callback) {      \
+                                                    CM_PLDM_FWUP_START_UPDATE();    \
+                                                    upgrade_cancer_callback((void *)gs_store_data, gs_fw_data_buf.pkt_data_len);    \
+                                                    CM_PLDM_FWUP_END_UPDATE();      \
+                                                }   \
+                                            })
 
 typedef enum {
     PLDM_UD_IDLE = 0,
@@ -39,6 +73,7 @@ typedef enum {
 typedef enum {
     PLDM_UD_ENTER_UD_WITH_PKTDATA = 1,
     PLDM_UD_ENTER_UD_NO_PKTDATA,
+    PLDM_UD_PACKAGEDATA_ERROR,
     PLDM_UD_PASSCOMP_END,
     PLDM_UD_UD_COMP_END,
     PLDM_UD_TRANSFER_PASS,
@@ -184,18 +219,8 @@ typedef struct {
 } pldm_fwup_comp_ver_msg_t;
 
 typedef struct {
-    char actv_comp_img_set_ver_str[32];
-    char pending_comp_img_set_ver_str[32];
-} pldm_fwup_comp_img_set_ver_str_t;
-
-typedef struct {
-    char actv_comp_ver_str[18];
-    char pending_comp_ver_str[18];
-} pldm_fwup_nvm_comp_ver_str_t;
-
-typedef struct {
-    u8 comp_img_set_ver_str_type;
-    u8 comp_img_set_ver_str_len;
+    u8 type;
+    u8 len;
 } pldm_comp_img_set_ver_str_type_and_len_t;
 
 typedef struct {
@@ -212,7 +237,8 @@ typedef struct {
     u8 pending_comp_release_date[8];
     u16 comp_actv_meth;
     u32 cap_during_ud;
-    pldm_fwup_nvm_comp_ver_str_t comp_ver_str;
+    u8 comp_ver_str[0];
+    // pldm_fwup_nvm_comp_ver_str_t comp_ver_str;
 } pldm_fwup_comp_param_table_t;
 
 typedef struct {
@@ -220,8 +246,9 @@ typedef struct {
     u16 comp_cnt;
     pldm_comp_img_set_ver_str_type_and_len_t actv_comp_img_set_ver_str_type_and_len;
     pldm_comp_img_set_ver_str_type_and_len_t pending_comp_img_set_ver_str_type_and_len;
-    pldm_fwup_comp_img_set_ver_str_t comp_img_set_ver_str;
-    pldm_fwup_comp_param_table_t comp_param_table[0];
+    u8 comp_img_set_ver_str[0];
+    // pldm_fwup_comp_img_set_ver_str_t comp_img_set_ver_str;
+    // pldm_fwup_comp_param_table_t comp_param_table[0];
 } pldm_get_fw_param_rsp_dat_t;
 
 typedef struct {
@@ -288,7 +315,7 @@ typedef struct {
 
 typedef struct {
     u8 cpl_code;
-    u32 comp_img_option[0];
+    u8 comp_img_option[0];
 } pldm_fwup_req_fw_data_rsp_dat_t;
 
 typedef struct {
@@ -416,8 +443,18 @@ typedef struct {
 
 typedef struct {
     pldm_comp_img_set_ver_str_type_and_len_t comp_img_set_ver_str_type_and_len;
-    char comp_img_ver_str[32];
+    char comp_img_ver_str[34];
 } pldm_fwup_comp_img_info_t;
+
+typedef struct {
+    u16 comp_classification;
+    u16 comp_identifier;
+    u8 comp_classification_idx;         /* not used */
+    u16 comp_actv_meth;
+    u8 comp_ver_str_type;
+    u8 comp_ver_str_len;
+    char comp_ver_str[19];
+} pldm_component_info_t;
 
 typedef struct {
     int hw_id;
@@ -426,10 +463,16 @@ typedef struct {
     u8 prev_state;
     u8 update_mode;
     u32 max_transfer_size;
-    pldm_fwup_comp_info_t fw_new_ud_comp[3];
-    // pldm_fwup_comp_info_t fw_cur_ud_comp[3];
-    pldm_fwup_comp_img_info_t fw_new_ud_comp_img;
-    // pldm_fwup_comp_img_info_t fw_cur_ud_comp_img;
+    u32 nvm_fwup_info_addr;
+    u16 pending_img_state;  /* 0b-no pending, 1b-in pending. bit0 slot_img; bit1 chip_img; bit2 factory_img */
+
+    u32 active_img_state;  /* 0b-active, 1b-no active. bit0 slot_img; bit1 chip_img; bit2 factory_img */
+    pldm_fwup_comp_img_info_t fw_active_set_info;
+    pldm_component_info_t fw_cur_img_info[3];
+    pldm_fwup_comp_img_info_t fw_pending_set_info;
+    pldm_component_info_t fw_pending_img_info[3];
+    pldm_fwup_comp_img_info_t fw_new_set_info;
+    pldm_component_info_t fw_new_img_info;
 } pldm_fwup_base_info_t;
 
 typedef struct {
@@ -447,15 +490,15 @@ typedef struct {
     do_action action;
 } pldm_fwup_state_transform_t;
 
-typedef int (*pldm_fw_upgrade_callback)(void *store, int id, u8 *dat, int len);
-typedef int (*pldm_fw_upgrade_complete_callback)(void *store, int total_len);
-typedef int (*pldm_fw_upgrade_cancer_callback)(void *store, int total_len);
+typedef sts_t (*pldm_fw_upgrade_callback)(void *store, int id, u8 *dat, int len);
+typedef sts_t (*pldm_fw_upgrade_complete_callback)(void *store, u32 total_len);
+typedef sts_t (*pldm_fw_upgrade_cancer_callback)(void *store, u32 total_len);
 
 typedef struct {
-    pldm_fw_upgrade_callback *upgrade_callback_func;
-    pldm_fw_upgrade_complete_callback *upgrade_complete_callback_func;
-    pldm_fw_upgrade_cancer_callback *upgrade_cancer_callback_func;
-} pldm_fwup_upgrade_func_t;
+    pldm_fw_upgrade_callback upgrade_callback_func;
+    pldm_fw_upgrade_complete_callback upgrade_complete_callback_func;
+    pldm_fw_upgrade_cancer_callback upgrade_cancer_callback_func;
+} pldm_fwup_upgrade_func_t; // 参考FPGA upgrade操作
 
 typedef struct {
     u64 enter_upgrade_time;

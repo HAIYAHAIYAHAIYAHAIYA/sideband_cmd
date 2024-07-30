@@ -7,7 +7,7 @@
     "FirmwareDeviceIdentificationArea": [
         {
             "DeviceUpdateOptionFlags": [0],
-            "ComponentImageSetVersionString": "N:nnnnnnnnO:ooooooooT:tttttttttt",
+            "ComponentImageSetVersionString": "N:nnnnnnnnnO:oooooooooT:tttttttttt",
             "ApplicableComponents": [0],
             "Descriptors": [
                 {
@@ -34,9 +34,9 @@
             "ComponentClassification": 13,
             "ComponentIdentifier": 0,
             "ComponentOptions": [],
-            "ComponentComparisonStamp": "0xFFFFFFFE",
+            "ComponentComparisonStamp": "0xFFFFFFFF",
             "RequestedComponentActivationMethod": [4],
-            "ComponentVersionString": "CCCCCCCC.SSSSSSSS"
+            "ComponentVersionString": "CCCCCCCCC.SSSSSSSSS"
         }
     ],
     "valid": "0x01"
