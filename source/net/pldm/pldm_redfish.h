@@ -13,7 +13,7 @@
 #define PLDM_OP_INIT_FIELD_LEN                              (sizeof(pldm_redfish_rde_operation_init_req_dat_t) + sizeof(pldm_response_t))
 #define PLDM_REDFISH_DICT_INFO_LEN                          ALIGN((sizeof(pldm_redfish_dict_hdr_t) + PLDM_REDFISH_DICT_NUM * sizeof(pldm_redfish_dict_info_t)), 4)
 
-#define PLDM_REDFISH_DICT_BASE_ADDR                         (0)
+#define PLDM_REDFISH_DICT_BASE_ADDR                         (0x7D8)
 
 #define NETWORK_ADAPTER_SCHEMACLASS                         (BIT(SCHEMACLASS_MAJOR))
 #define NETWORK_INTERFACE_SCHEMACLASS                       (BIT(SCHEMACLASS_MAJOR))

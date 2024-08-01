@@ -11,7 +11,6 @@ static op_info_t gs_op_info = {.dev_status = OPERATION_INACTIVE};
 static op_data_buf_t gs_op_buf;
 static u8 etag[ALL_SCHEMA][9];
 pldm_redfish_bej_t g_resource_bej[PLDM_REDFISH_RESOURCE_NUM];
-u8 g_dict_info[PLDM_REDFISH_DICT_INFO_LEN];
 u8 g_anno_dict[PLDM_REDFISH_ANNO_DICT_LEN];
 u8 g_needed_dict[PLDM_REDFISH_ANNO_DICT_LEN];
 
@@ -982,7 +981,7 @@ void pldm_redfish_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
 
 void CM_FLASH_READ(u32 offset, u32 *buf, u32 size)
 {
-    FILE *fp = fopen("./build/truncated_pldm_redfish_dicts.bin", "r+b");
+    FILE *fp = fopen("./build/pldm_data.bin", "r+b");
     if (!fp) {
         LOG("CM_FLASH_READ open file err!");
         return;
@@ -1081,12 +1080,15 @@ u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dic
 {
     if (!dict) return false;
     u32 dict_addr = 0;
+    u8 dict_info_buf[PLDM_REDFISH_DICT_INFO_LEN];
     resource_id = pldm_redfish_resource_id_to_base(resource_id);
 
     if (!len)
         len = pldm_redfish_get_dict_len(resource_id, requested_schemaclass);
 
-    pldm_redfish_dict_hdr_t *dict_info  = (pldm_redfish_dict_hdr_t *)g_dict_info;
+    CM_FLASH_READ(PLDM_REDFISH_DICT_BASE_ADDR, (u32 *)dict_info_buf, PLDM_REDFISH_DICT_INFO_LEN / sizeof(u32));
+
+    pldm_redfish_dict_hdr_t *dict_info  = (pldm_redfish_dict_hdr_t *)dict_info_buf;
     for (u8 i = 0; i < dict_info->num_of_dict; i++) {
         if ((resource_id == dict_info->dict_info[i].resource_id) && (BIT(requested_schemaclass) & dict_info->dict_info[i].schema_class)) {
             dict_addr = dict_info->dict_info[i].offset;
@@ -1112,8 +1114,27 @@ void pldm_redfish_op_triggered(void)
     pldm_redfish_op();
 }
 
+/* struct :
+   hdr | g_resource_bej */
+
+void pldm_redfish_bej_data_init(pldm_data_hdr_t *pldm_data_hdr, u32 pldm_nvm_off)
+{
+    if (!pldm_data_hdr) return;
+    pldm_redfish_schema_data_hdr_t pldm_redfish_schema_hdr;
+    u8 pldm_redfish_schema_hdr_len = sizeof(pldm_redfish_schema_data_hdr_t);
+
+    u32 data_start_addr = pldm_nvm_off + pldm_data_hdr->pldm_redfish_schema_off;
+
+    CM_FLASH_READ(data_start_addr, (void *)&pldm_redfish_schema_hdr, (pldm_redfish_schema_hdr_len / sizeof(u32)));
+    LOG("bej init from nvm, total len : %d, cnt : %d", pldm_redfish_schema_hdr.total_size, pldm_redfish_schema_hdr.cnt);
+    CM_FLASH_READ((data_start_addr + pldm_redfish_schema_hdr_len), (void *)g_resource_bej, ((pldm_data_hdr->pldm_redfish_schema_size - pldm_redfish_schema_hdr_len) / sizeof(u32)));
+}
+
 void pldm_redfish_init(void)
 {
+    pldm_data_hdr_t pldm_data_hdr = {0};
+    CM_FLASH_READ(0, (void *)&pldm_data_hdr, (sizeof(pldm_data_hdr_t) / sizeof(u32)));
+
     g_pldm_redfish_base_info.mc_maximum_xfer_chunksize_bytes = PLDM_REDFISH_DEV_MAXIMUM_XFER_CHUNKSIZE_BYTES;
     g_pldm_redfish_base_info.prev_op_identify.resource_id = 0;
     g_pldm_redfish_base_info.prev_op_identify.op_id = 0;
@@ -1121,9 +1142,10 @@ void pldm_redfish_init(void)
     pldm_redfish_clear_op_param();
 
     pldm_bej_init();
-    CM_FLASH_READ(PLDM_REDFISH_DICT_BASE_ADDR, (u32 *)g_dict_info, PLDM_REDFISH_DICT_INFO_LEN / sizeof(u32));
 
     pldm_redfish_get_dict_data(PLDM_BASE_ANNOTATION_DICT_RESOURCE_ID, SCHEMACLASS_ANNOTATION, g_anno_dict, PLDM_REDFISH_ANNO_DICT_LEN);
+
+    pldm_redfish_bej_data_init(&pldm_data_hdr, 0);
 }
 
 void pldm_redfish_op(void)

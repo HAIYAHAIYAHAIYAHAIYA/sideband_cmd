@@ -38,6 +38,7 @@ extern void pldm_ctrl_set_tid(protocol_msg_t *pkt, int *pkt_len);
 extern void pldm_ctrl_get_tid(protocol_msg_t *pkt, int *pkt_len);
 extern void pldm_unsupport_cmd(protocol_msg_t *pkt, int *pkt_len);
 extern u32 crc32_pldm(u32 init_crc, u8 *data, u32 len);
+extern void CM_FLASH_READ(u32 offset, u32 *buf, u32 size);
 
 u8 crc8_pldm(u8 *data, u16 len);
 
@@ -943,6 +944,33 @@ void pldm_monitor_printf_repo(pldm_pdr_t *repo)
     }
 }
 
+/* struct :
+   hdr | pdr | pdr | ... */
+
+static void pldm_monitor_pdr_init(pldm_data_hdr_t *pldm_data_hdr, pldm_pdr_t *repo, u32 pldm_nvm_off)
+{
+    if (!pldm_data_hdr || !repo) return;
+
+    pldm_pdr_data_hdr_t pdr_data_hdr;
+    u8 pdr_hdr_len = sizeof(pldm_pdr_data_hdr_t);
+    u32 data_start_addr = pldm_nvm_off + pldm_data_hdr->pldm_pdr_off;
+
+    u8 *pdr_data = pdr_malloc(pldm_data_hdr->pldm_pdr_size - pdr_hdr_len);
+    if (!pdr_data) return;
+
+    CM_FLASH_READ(data_start_addr, (void *)&pdr_data_hdr, (pdr_hdr_len / sizeof(u32)));
+    LOG("pdr init from nvm, total len : %d, cnt : %d", pdr_data_hdr.total_size, pdr_data_hdr.cnt);
+    CM_FLASH_READ((data_start_addr + pdr_hdr_len), (void *)pdr_data, ((pldm_data_hdr->pldm_pdr_size - pdr_hdr_len) / sizeof(u32)));
+
+    u8 *ptr = pdr_data;
+
+    for (u8 i = 0; i < pdr_data_hdr.cnt; i++) {
+        pldm_pdr_hdr_t *pdr_hdr = (pldm_pdr_hdr_t *)ptr;
+        u16 pdr_size = pdr_hdr->length + sizeof(pldm_pdr_hdr_t);
+        pldm_pdr_add(repo, ptr, pdr_size, pdr_hdr->record_handle);
+        ptr += pdr_size;
+    }
+}
 
 void pldm_monitor_init(void)
 {
@@ -951,12 +979,16 @@ void pldm_monitor_init(void)
     g_pldm_monitor_info.event_receiver_eid = 0x66;
     g_pldm_monitor_info.tid = 0x67;
 
-    pldm_assoc_pdr_init();
-    pldm_terminus_locator_pdr_init();
-    pldm_numeric_sensor_pdr_init();
-    pldm_state_sensor_pdr_init();
-    pldm_redfish_pdr_init();
-    pldm_fru_pdr_init();
+    // pldm_assoc_pdr_init();
+    // pldm_terminus_locator_pdr_init();
+    // pldm_numeric_sensor_pdr_init();
+    // pldm_state_sensor_pdr_init();
+    // pldm_redfish_pdr_init();
+    // pldm_fru_pdr_init();
+
+    pldm_data_hdr_t pldm_data_hdr = {0};
+    CM_FLASH_READ(0, (void *)&pldm_data_hdr, (sizeof(pldm_data_hdr_t) / sizeof(u32)));
+    pldm_monitor_pdr_init(&pldm_data_hdr, &(g_pldm_monitor_info.pldm_repo), 0);
 
     // g_pldm_monitor_info.pldm_repo.update_time =
     pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));

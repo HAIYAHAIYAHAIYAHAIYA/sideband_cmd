@@ -32,7 +32,7 @@ extern pldm_controller_composite_state_sensor_data_struct_t controller_composite
 extern void pldm_unsupport_cmd(protocol_msg_t *pkt, int *pkt_len);
 extern u32 crc32_pldm(u32 init_crc, u8 *data, u32 len);
 
-extern void CM_FALSH_READ(u32 offset, u32 *buf, u32 size);
+extern void CM_FLASH_READ(u32 offset, u32 *buf, u32 size);
 extern sts_t CM_FALSH_WRITE(u32 offset, u32 *buf, u32 size);
 
 /* to be determind */
@@ -289,8 +289,8 @@ static void pldm_fwup_passcomponenttable(protocol_msg_t *pkt, int *pkt_len)
         return;
     }
 
-    cm_memcpy(&g_pldm_fwup_info.fw_new_img_info, &(req_dat->comp_class_msg), \
-    sizeof(pldm_fwup_comp_class_msg_t) + sizeof(pldm_fwup_comp_ver_msg_t) + req_dat->comp_ver_msg.comp_ver_str_len);
+    cm_memcpy(&g_pldm_fwup_info.fw_new_img_info, &(req_dat->comp_class_msg), sizeof(pldm_fwup_comp_class_msg_t));
+    cm_memcpy(&g_pldm_fwup_info.fw_new_img_info.comp_ver_str_type, &(req_dat->comp_ver_msg.comp_ver_str_type), sizeof(pldm_comp_img_set_ver_str_type_and_len_t) + req_dat->comp_ver_msg.comp_ver_str_len);
 
     rsp_dat->comp_rsp = 0;
     rsp_dat->comp_rsp_code = 0;
@@ -319,21 +319,21 @@ static void pldm_fwup_updatecomponent(protocol_msg_t *pkt, int *pkt_len)
     rsp_dat->comp_compatibility_rsp_code = 0;        /* No response code – used when component can be updated. */
 
     /* 组件信息验证 */
-    // if (g_pldm_fwup_info.fw_new_img_info.comp_identifier == req_dat->comp_class_msg.comp_identifier) {
-    //     u32 new_ver_str_len = g_pldm_fwup_info.fw_new_img_info.comp_ver_str_len;
-    //     u32 req_ver_str_len = req_dat->comp_ver_str_type_len;
-    //     u32 str_compare_len = MIN(new_ver_str_len, req_ver_str_len);
-    //     int error_result = (new_ver_str_len != req_ver_str_len);
-    //     error_result |= (g_pldm_fwup_info.fw_new_img_info.comp_ver_str_type != req_dat->comp_ver_str_type);
-    //     error_result |= cm_memcmp(g_pldm_fwup_info.fw_new_img_info.comp_ver_str, req_dat->comp_ver_str, str_compare_len);
-    //     if (error_result) {
-    //         rsp_dat->comp_compatibility_rsp = 1;        // Component will not be updated
-    //         rsp_dat->comp_compatibility_rsp_code = 3;   // Invalid component comparison stamp or version.
-    //     }
-    // } else {
-    //     rsp_dat->comp_compatibility_rsp = 1;            // Component will not be updated
-    //     rsp_dat->comp_compatibility_rsp_code = 8;       // Component cannot be updated as an Incomplete Component Image Set was received from the PassComponentTable commands
-    // }
+    if (g_pldm_fwup_info.fw_new_img_info.comp_identifier == req_dat->comp_class_msg.comp_identifier) {
+        u32 new_ver_str_len = g_pldm_fwup_info.fw_new_img_info.comp_ver_str_len;
+        u32 req_ver_str_len = req_dat->comp_ver_str_type_len;
+        u32 str_compare_len = MIN(new_ver_str_len, req_ver_str_len);
+        int error_result = (new_ver_str_len != req_ver_str_len);
+        error_result |= (g_pldm_fwup_info.fw_new_img_info.comp_ver_str_type != req_dat->comp_ver_str_type);
+        error_result |= cm_memcmp(g_pldm_fwup_info.fw_new_img_info.comp_ver_str, req_dat->comp_ver_str, str_compare_len);
+        if (error_result) {
+            rsp_dat->comp_compatibility_rsp = 1;        // Component will not be updated
+            rsp_dat->comp_compatibility_rsp_code = 3;   // Invalid component comparison stamp or version.
+        }
+    } else {
+        rsp_dat->comp_compatibility_rsp = 1;            // Component will not be updated
+        rsp_dat->comp_compatibility_rsp_code = 8;       // Component cannot be updated as an Incomplete Component Image Set was received from the PassComponentTable commands
+    }
 
     rsp_dat->ud_option_flag_en = 0;                     /* Force Update of component. If Bit 0 is set, firmware should allow downgrade only up to security version.*/
     rsp_dat->estimated_time_before_send_req_fw_data = 0;
@@ -358,7 +358,6 @@ static void pldm_fwup_requestfwdata_send(void)
 
 static void pldm_fwup_transfercpl_send(u8 result)
 {
-    g_pldm_need_rsp = 0;
     pldm_fwup_transfer_cpl_req_dat_t req_dat = {0};
     req_dat.transfer_result = result;
 
@@ -424,7 +423,6 @@ static void pldm_fwup_requestfwdata_recv(protocol_msg_t *pkt, int *pkt_len)
 static u8 verify_result = 0;
 static void pldm_fwup_verifycpl_send(void)
 {
-    g_pldm_need_rsp = 0;
     /* Verify has completed with error as the image failed the FD security checks */
     // verify_result = 3;
     pldm_fwup_verify_cpl_req_dat_t req_dat = {0};
@@ -434,7 +432,6 @@ static void pldm_fwup_verifycpl_send(void)
 
 static void pldm_fwup_applycpl_send(void)
 {
-    g_pldm_need_rsp = 0;
     pldm_fwup_apply_cpl_req_dat_t req_dat = {0};
 
     /* 0x01:Apply has completed with success and has modified its activation method. Values shall be provided in the ComponentActivationMethodsModifications field */
@@ -446,6 +443,7 @@ static void pldm_fwup_applycpl_send(void)
 
 static void pldm_fwup_transfercpl_recv(protocol_msg_t *pkt, int *pkt_len)
 {
+    g_pldm_need_rsp = 0;
     pldm_fwup_transfer_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_transfer_cpl_rsp_dat_t *)(pkt->req_buf);
     if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
         LOG("cpl_code : %#x", rsp_dat->cpl_code);
@@ -458,6 +456,7 @@ static void pldm_fwup_transfercpl_recv(protocol_msg_t *pkt, int *pkt_len)
 
 static void pldm_fwup_verifycpl_recv(protocol_msg_t *pkt, int *pkt_len)
 {
+    g_pldm_need_rsp = 0;
     pldm_fwup_verify_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_verify_cpl_rsp_dat_t *)(pkt->req_buf);
     if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
         LOG("cpl_code : %#x", rsp_dat->cpl_code);
@@ -482,6 +481,7 @@ static void pldm_fwup_verify_process(void)
 
 static void pldm_fwup_applycpl_recv(protocol_msg_t *pkt, int *pkt_len)
 {
+    g_pldm_need_rsp = 0;
     pldm_fwup_apply_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_apply_cpl_rsp_dat_t *)(pkt->req_buf);
     if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
         LOG("cpl_code : %#x", rsp_dat->cpl_code);
@@ -490,7 +490,6 @@ static void pldm_fwup_applycpl_recv(protocol_msg_t *pkt, int *pkt_len)
         gs_progress_flag = 1;
     }
 }
-
 
 static void pldm_fwup_activatefw(protocol_msg_t *pkt, int *pkt_len)
 {
@@ -714,6 +713,26 @@ void pldm_fwup_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
     cmd_proc(pkt, pkt_len);
 }
 
+void pldm_fwup_info_printf(pldm_fwup_base_info_t *fwup_info)
+{
+    LOG("%d", fwup_info->active_img_state);
+    LOG("%d", fwup_info->fw_active_set_info.comp_img_set_ver_str_type_and_len.type);
+    LOG("%d", fwup_info->fw_active_set_info.comp_img_set_ver_str_type_and_len.len);
+    for (u8 i = 0; i < fwup_info->fw_active_set_info.comp_img_set_ver_str_type_and_len.len; i++) {
+        printf("%c", fwup_info->fw_active_set_info.comp_img_ver_str[i]);
+    }
+    LOG("");
+
+    for (u8 i = 0; i < 3; i++) {
+        LOG("%d", fwup_info->fw_cur_img_info[i].comp_ver_str_type);
+        LOG("%d", fwup_info->fw_cur_img_info[i].comp_ver_str_len);
+        for (u8 j = 0; j < fwup_info->fw_cur_img_info[i].comp_ver_str_len; j++) {
+            printf("%c", fwup_info->fw_cur_img_info[i].comp_ver_str[j]);
+        }
+        LOG("");
+    }
+}
+
 void pldm_fwup_init(void)
 {
     cm_memset(&g_pldm_fwup_info, 0, sizeof(pldm_fwup_base_info_t));
@@ -724,14 +743,13 @@ void pldm_fwup_init(void)
     // g_pldm_fwup_info.prev_state = PLDM_UD_IDLE;
     // g_pldm_fwup_info.update_mode = FALSE;
 
-    // pldm_nvm_hdr_info_t pldm_nvm_hdr;
-    // CM_PLDM_HDR_OFF_LOAD(pldm_nvm_hdr);
+    pldm_data_hdr_t pldm_data_hdr = {0};
+    CM_FLASH_READ(0, (void *)&pldm_data_hdr, (sizeof(pldm_data_hdr_t) / sizeof(u32)));
 
-    // pldm_data_hdr_t pldm_data_hdr = {0};
-    // CM_FLASH_READ(pldm_nvm_hdr.offset, (void *)&pldm_data_hdr, (sizeof(pldm_data_hdr_t) / sizeof(u32)));
-
-    // g_pldm_fwup_info.nvm_fwup_info_addr = pldm_nvm_hdr.offset + pldm_data_hdr.pldm_fwup_info_off + sizeof(pldm_data_hdr_t);
-    // CM_FLASH_READ(g_pldm_fwup_info.nvm_fwup_info_addr, (void *)&g_pldm_fwup_info.active_img_state, (sizeof(pldm_component_info_t) * 3 + sizeof(pldm_fwup_comp_img_info_t) + sizeof(u8) * 5) / sizeof(u32));
+    g_pldm_fwup_info.nvm_fwup_info_addr = 0 + pldm_data_hdr.pldm_fwup_info_off;
+    LOG("fwup info init from nvm, total len : %d, cnt : %d", pldm_data_hdr.pldm_fwup_info_off, pldm_data_hdr.pldm_fwup_info_size);
+    CM_FLASH_READ(g_pldm_fwup_info.nvm_fwup_info_addr, (void *)&g_pldm_fwup_info.active_img_state, (sizeof(pldm_component_info_t) * 3 + sizeof(pldm_fwup_comp_img_info_t) + sizeof(u8) * 4) / sizeof(u32));
+    // pldm_fwup_info_printf(&g_pldm_fwup_info);
 }
 
 static void pldm_fwup_timeout_process(void)

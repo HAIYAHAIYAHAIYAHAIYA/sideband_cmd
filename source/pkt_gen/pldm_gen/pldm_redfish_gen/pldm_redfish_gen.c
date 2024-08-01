@@ -121,7 +121,6 @@ static void pldm_redfish_gen_cmd_0b(u8 *buf)
 }
 
 pldm_payload_dat_t g_send_buf;
-extern u8 g_dict_info[PLDM_REDFISH_DICT_INFO_LEN];
 extern u8 g_anno_dict[PLDM_REDFISH_ANNO_DICT_LEN];
 extern u8 g_needed_dict[PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN];
 extern schema_create g_schemas_update[11];

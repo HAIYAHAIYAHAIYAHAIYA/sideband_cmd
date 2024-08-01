@@ -8,7 +8,6 @@
 u16 g_event_id = 1;
 extern pldm_monitor_base_info_t g_pldm_monitor_info;
 extern u8 g_anno_dict[PLDM_REDFISH_ANNO_DICT_LEN];
-extern u8 g_dict_info[PLDM_REDFISH_DICT_INFO_LEN];
 typedef struct {
     u8 buf[PLDM_TERMINUS_MAX_BUFFERSIZE];
     u16 rd;

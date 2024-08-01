@@ -479,6 +479,11 @@ typedef struct {
     u32 min_readable;
 } pldm_speed_sensor_cap_t;
 
+typedef struct {
+    u16 total_size;
+    u16 cnt;
+} pldm_pdr_data_hdr_t, pldm_redfish_schema_data_hdr_t;
+
 #pragma pack()
 
 typedef void (*pldm_monitor_handle)(u8 port);

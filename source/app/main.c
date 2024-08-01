@@ -182,16 +182,16 @@ int main(int argc, char * argv [])
 	{
         switch (choice) {
             case 1:
-            mctp_process(&pkt);
-            break;
+                mctp_process(&pkt);
+                break;
             case 2:
-            pldm_process(&pkt);
-            break;
+                pldm_process(&pkt);
+                break;
             case 3:
-            ncsi_process(&pkt);
-            break;
+                ncsi_process(&pkt);
+                break;
             default:
-            LOG("choice : %d", choice);
+                LOG("choice : %d", choice);
             break;
         }
         // LOG("%d", choice);
