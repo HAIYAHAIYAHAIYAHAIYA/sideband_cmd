@@ -30,7 +30,7 @@ static void pldm_fru_gen_recv_cmd_02(u8 *buf)
         get_fru_record_table_rsp_dat = *rsp_dat;
         if (rsp_dat->transfer_flg == PLDM_FRU_TRANSFRT_FLG_START_AND_END || rsp_dat->transfer_flg == PLDM_FRU_TRANSFRT_FLG_END) {
             gs_pldm_fru_gen_state.event_id = PLDM_FRU_GEN_UNKNOW;
-            cal_crc32 = crc32_pldm(cal_crc32 ^ 0xFFFFFFFFUL, rsp_dat->portion_of_data, 10);
+            cal_crc32 = crc32_pldm(cal_crc32 ^ 0xFFFFFFFFUL, rsp_dat->portion_of_data, 26);
             LOG("cal_crc32 : %#x", cal_crc32);
             cal_crc32 = 0;
             get_fru_record_table_rsp_dat.next_data_transfer_hdl = 0;

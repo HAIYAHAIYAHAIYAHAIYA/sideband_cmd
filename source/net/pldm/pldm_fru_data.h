@@ -9,14 +9,26 @@
 /* Attention ! DSP0257 pldm fru data spec do not have transfer buffersize. pldm_fru_get_fru_record_table rsp cmd's behavior may be err.  */
 #define PLDM_FRU_TRANSFER_BUFFERSIZE    PLDM_TERMINUS_DEFAULT_BUFFERSIZE
 
+/* TBD */
+#define CM_VENDOR_GET_PCI_DEV_ID                    (0)
+#define CM_VENDOR_GET_PCI_VENDOR_ID                 (0)
+#define CM_VENDOR_GET_PCI_SUBSYS_ID                 (0)
+#define CM_VENDOR_GET_PCI_SUBSYS_VENDOR_ID          (0)
+#define CM_VENDOR_GET_PCI_REVISION_ID               (0)
+
+// IANA 0x57584B4A 'WXKJ'
+#define CM_VENDOR_GET_VEMDOR_IANA                   ("CJCJ")
+
+#define CM_GET_FW_VERSION                           (0xFF00FF00)
+#define CM_GET_IMG_VERSION                          (~0xFF00FF00)
+
 typedef enum {
     RECORD_GENERAL_FRU_RECORD_TYPE = 0x01,
     RECORD_OEM_FRU_RECORD_TYPE = 0xFE
 } pldm_fru_record_type_t;
 
 typedef enum {
-    FIELD_CLASSIS_TYPE = 0x01,
-    FIELD_VENDOR_IANA_TYPE = 0x01,      /* RECORD_OEM_FRU_RECORD_TYPE */
+    FIELD_CLASSIS_TYPE = 0x00,
     FIELD_MODULE_TYPE,
     FIELD_PART_NUM_TYPE,
     FIELD_SERIAL_NUM_TYPE,
@@ -30,8 +42,20 @@ typedef enum {
     FIELD_DESCRIPTION_TYPE,
     FIELD_ENG_CHG_LVL_TYPE,
     FIELD_OTHER_INFO_TYPE,
-    // FIELD_VENDOR_IANA_TYPE = 0xF,             /* RECORD_GENERAL_FRU_RECORD_TYPE */
-} pldm_fru_field_type_t;
+    FIELD_VENDOR_IANA_TYPE,             /* RECORD_GENERAL_FRU_RECORD_TYPE */
+} pldm_general_fru_field_type_t;
+
+typedef enum {
+    FIELD_OEM_VENDOR_IANA_TYPE = 0x0,         /* RECORD_OEM_FRU_RECORD_TYPE */
+    FIELD_OEM_FW_VERSION_TYPE,
+    FIELD_OEM_DID_TYPE,
+    FIELD_OEM_VID_TYPE,
+    FIELD_OEM_SSID_TYPE,
+    FIELD_OEM_SVID_TYPE,
+    FIELD_OEM_PCIE_LINK_SPD_TYPE,
+    FIELD_OEM_PORT_NUM_TYPE = 0x1,
+    FIELD_OEM_LINK_SPD_CAP_TYPE,
+} pldm_oem_fru_field_type_t;
 
 typedef enum {
     FRU_GENERAL_SET_ID = 0x01,
@@ -93,7 +117,7 @@ typedef struct {
 
 #pragma pack()
 
-typedef u8 *(pldm_fru_fill_table)(u8 *);
+typedef u8 *(pldm_fru_fill_table)(u8 *, u8 *);
 
 void pldm_fru_init(void);
 void pldm_fru_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code);
