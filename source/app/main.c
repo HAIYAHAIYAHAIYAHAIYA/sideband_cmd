@@ -85,6 +85,7 @@ void cmd_init(void)
     pldm_monitor_init();
     pldm_fwup_init();
     pldm_fru_init();
+    ncsi_init(1);
 
     pldm_gen_init();
 }

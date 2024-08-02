@@ -175,6 +175,7 @@ static void ncsi_init_req(int cmd, u8 *buf)
     ncsi_hdr->revision = 0x1;
     ncsi_hdr->type = cmd;
     ncsi_hdr->length = 0;
+    ncsi_hdr->channel = 0;
 }
 
 void ncsi_cmd_gen(int cmd, u8 *buf)

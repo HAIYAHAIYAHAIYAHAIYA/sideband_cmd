@@ -7,7 +7,6 @@
 #include "pldm_fru_gen.h"
 
 #include "ncsi_gen.h"
-#include "ncsi.h"
 
 void gen_cmd_unsupport(u8 *buf)
 {
@@ -37,8 +36,6 @@ void pldm_gen_init(void)
     pldm_monitor_gen_init();
     pldm_redfish_gen_init();
     pldm_fru_gen_init();
-
-    ncsi_init(1);
 }
 
 u8 pldm_gen(int type, int cmd, u8 *buf)
