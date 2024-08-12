@@ -1357,42 +1357,48 @@ static void pldm_add_connector_assoc_pdr(u8 port)
     container.entity_container_id = PLDM_BASE_NIC_CONTAINER_ID;
 
     contained.entity_type = plug_power_sensors[port].entity_type;
-    contained.entity_instance_num = port;
+    contained.entity_instance_num = 1;
 
-    pldm_add_assoc_pdr(&container, &contained, PLDM_BASE_CONNECTOR_ASSOC_PDR_HANDLE + port, PLDM_BASE_CONNECTOR_CONTAINER_ID, 1, \
+    pldm_add_assoc_pdr(&container, &contained, PLDM_BASE_CONNECTOR_ASSOC_PDR_HANDLE + port, PLDM_BASE_CONNECTOR_CONTAINER_ID + port, 1, \
     PLDM_ENTITY_ASSOCIAION_PHYSICAL);
 }
 
 static void pldm_add_pluggable_module_assoc_pdr(u8 port)
 {
     pldm_pdr_entity_assoc_t *container_assoc_pdr = NULL;
+    pldm_pdr_record_t *is_find = NULL;
     pldm_entity_t contained;
 
-    container_assoc_pdr = (pldm_pdr_entity_assoc_t *)pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_BASE_CONNECTOR_ASSOC_PDR_HANDLE + port);
+    is_find = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_BASE_CONNECTOR_ASSOC_PDR_HANDLE + port);
 
-    if (!container_assoc_pdr) {
+    if (!is_find) {
         LOG("Not find assoc pdr. record handle : %d", PLDM_BASE_CONNECTOR_ASSOC_PDR_HANDLE + port);
         return;
     }
 
+    container_assoc_pdr = (pldm_pdr_entity_assoc_t *)(is_find->data);
+
     /* Pluggable Module assoc PDR */
     contained.entity_type = CABLE;
     contained.entity_instance_num = 1;
-    pldm_add_assoc_pdr(&container_assoc_pdr->contained[0], &contained, PLDM_BASE_PLUG_ASSOC_PDR_HANDLE + port, PLDM_BASE_PLUG_CONTAINER_ID, 1, \
+    pldm_add_assoc_pdr(&(container_assoc_pdr->contained[0]), &contained, PLDM_BASE_PLUG_ASSOC_PDR_HANDLE + port, PLDM_BASE_PLUG_CONTAINER_ID + port, 1, \
     PLDM_ENTITY_ASSOCIAION_PHYSICAL);
 }
 
 static void pldm_add_comm_chan_assoc_pdr(u8 port)
 {
     pldm_pdr_entity_assoc_t *container_assoc_pdr = NULL;
+    pldm_pdr_record_t *is_find = NULL;
     pldm_entity_t contained[2];
 
-    container_assoc_pdr = (pldm_pdr_entity_assoc_t *)pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_BASE_PLUG_ASSOC_PDR_HANDLE + port);
+    is_find = pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_BASE_PLUG_ASSOC_PDR_HANDLE + port);
 
-    if (!container_assoc_pdr) {
+    if (!is_find) {
         LOG("Not find assoc pdr. record handle : %d", PLDM_BASE_PLUG_ASSOC_PDR_HANDLE + port);
         return;
     }
+
+    container_assoc_pdr = (pldm_pdr_entity_assoc_t *)(is_find->data);
 
     /* Communication Channel Entity assoc PDR */
     contained[0].entity_type = ETH_PORT;
@@ -1400,7 +1406,7 @@ static void pldm_add_comm_chan_assoc_pdr(u8 port)
 
     contained[1].entity_type = CABLE;
     contained[1].entity_instance_num = 1;
-    pldm_add_assoc_pdr(&container_assoc_pdr->contained[0], contained, PLDM_BASE_COMM_CHAN_ASSOC_PDR_HANDLE + port, PLDM_BASE_COMM_CHAN_CONTAINER_ID, 2, \
+    pldm_add_assoc_pdr(&(container_assoc_pdr->contained[0]), contained, PLDM_BASE_COMM_CHAN_ASSOC_PDR_HANDLE + port, PLDM_BASE_COMM_CHAN_CONTAINER_ID + port, 2, \
     PLDM_ENTITY_ASSOCIAION_LOGICAL);
 }
 
@@ -1464,7 +1470,7 @@ void pldm_link_handle(u8 port, u8 link_state)
             pldm_link_func[link_state][i](port);
         }
     }
-    pldm_redfish_msg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID + port, link_state);
+    // pldm_redfish_msg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID + port, link_state);
     /* 12.8.2.3 PDR Dynamic Changes Flow */
     pldm_modify_state_datastruct(CONFIG_CHG, &nic_composite_state_sensors[2]);
 

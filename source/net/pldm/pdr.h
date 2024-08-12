@@ -246,9 +246,9 @@ typedef struct {
 
 typedef union {
     struct {
-        u32 sign          : 1;          /* [31] – S (sign) bit (1 = negative, 0 = positive) */
-        u32 exponent      : 8;          /* [30:23] – exponent as a binary integer (8 bits) */
         u32 mantissa      : 23;         /* [22:0] – mantissa as a binary integer (23 bits) */
+        u32 exponent      : 8;          /* [30:23] – exponent as a binary integer (8 bits) */
+        u32 sign          : 1;          /* [31] – S (sign) bit (1 = negative, 0 = positive) */
     };
     u32 val;
 } real32_t;
@@ -413,8 +413,8 @@ typedef struct {
     pldm_pdr_hdr_t hdr;
 	u16 container_id;
 	u8 assoc_type;
-    u8 contained_entity_cnt;
 	pldm_entity_t container;
+    u8 contained_entity_cnt;
 	pldm_entity_t contained[0];
 } pldm_pdr_entity_assoc_t;
 

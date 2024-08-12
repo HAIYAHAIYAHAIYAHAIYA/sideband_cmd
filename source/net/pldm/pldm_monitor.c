@@ -913,7 +913,7 @@ void pldm_monitor_printf_repo(pldm_pdr_t *repo)
     LOG("largest pdr size : %d", repo->largest_pdr_size);
     LOG("time : %s", __TIME__);
     LOG("update_time : %s", &(repo->update_time));
-    LOG("repo_signature : %d", repo->repo_signature);
+    LOG("repo_signature : %x", repo->repo_signature);
     u16 sum_size = 0;
     u8 cnt = 0;
     pldm_pdr_record_t *pdr = NULL;
@@ -922,11 +922,11 @@ void pldm_monitor_printf_repo(pldm_pdr_t *repo)
 #else
     pdr = repo->head;
 #endif
+    repo->repo_signature = 0;
     while (pdr) {
         cnt++;
         pldm_pdr_hdr_t *hdr = (pldm_pdr_hdr_t *)(pdr->data);
         LOG("pdr size : %04d, record handle : %04d, type : %d", pdr->size, pdr->record_handle, hdr->type);
-        repo->repo_signature = 0;
         repo->repo_signature = crc32_pldm(repo->repo_signature ^ 0xFFFFFFFFUL, pdr->data, pdr->size);
         sum_size += pdr->size;
         pdr = pdr->next;
