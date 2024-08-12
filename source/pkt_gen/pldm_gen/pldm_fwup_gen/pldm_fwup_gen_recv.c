@@ -6,23 +6,76 @@ static pldm_fwup_req_fw_data_req_dat_t gs_fw_data_req_dat;
 
 static void pldm_fwup_gen_recv_cmd_01(u8 *buf)
 {
-    // pldm_query_dev_identifier_rsp_dat_t *rsp_dat = (pldm_query_dev_identifier_rsp_dat_t *)(buf + sizeof(pldm_response_t));
-    // LOG("dev_identifier_len : %d", rsp_dat->dev_identifier_len);
-    // LOG("descriptor_cnt : %d", rsp_dat->descriptor_cnt);
-    // LOG("init_type : %d", rsp_dat->descriptor.init_type);
-    // LOG("init_len : %d", rsp_dat->descriptor.init_len);
-    // LOG("init_data : 0x%x", rsp_dat->descriptor.init_data);
-    // pldm_add_descriptor_t *add_d = (pldm_add_descriptor_t *)(rsp_dat->descriptor.add_descriptor);
-    // for (u8 i = 0; i < rsp_dat->descriptor_cnt - 1; i++) {
-    //     LOG("add_type : %d", add_d[i].add_type);
-    //     LOG("add_len : %d", add_d[i].add_len);
-    //     LOG("add_data : 0x%x", add_d[i].add_data);
-    // }
+    pldm_query_dev_identifier_rsp_dat_t *rsp_dat = (pldm_query_dev_identifier_rsp_dat_t *)(buf + sizeof(pldm_response_t));
+    LOG("dev_identifier_len : %d", rsp_dat->dev_identifier_len);
+    LOG("descriptor_cnt : %d", rsp_dat->descriptor_cnt);
+    pldm_add_descriptor_t *add_d = (pldm_add_descriptor_t *)(rsp_dat->add_descriptor);
+    for (u8 i = 0; i < rsp_dat->descriptor_cnt; i++) {
+        LOG("add_type : %d", add_d[i].add_type);
+        LOG("add_len : %d", add_d[i].add_len);
+        LOG("add_data : 0x%x", add_d[i].add_data);
+    }
     gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_GET_FD_INDENTIFY;
 }
 
 static void pldm_fwup_gen_recv_cmd_02(u8 *buf)
 {
+    pldm_get_fw_param_rsp_dat_t *rsp_dat = (pldm_get_fw_param_rsp_dat_t *)(buf + sizeof(pldm_response_t));
+    u32 offset = 0;
+    LOG("cap_during_ud : 0x%x", rsp_dat->cap_during_ud);
+    LOG("comp_cnt : %d", rsp_dat->comp_cnt);
+    LOG("actv_t : %d", rsp_dat->actv_comp_img_set_ver_str_type_and_len.type);
+    LOG("actv_l : %d", rsp_dat->actv_comp_img_set_ver_str_type_and_len.len);
+    for (u8 i = 0; i < rsp_dat->actv_comp_img_set_ver_str_type_and_len.len; i++) {
+        printf("%c", rsp_dat->comp_img_set_ver_str[offset + i]);
+    }
+    LOG("");
+    LOG("pending_t : %d", rsp_dat->pending_comp_img_set_ver_str_type_and_len.type);
+    LOG("pending_l : %d", rsp_dat->pending_comp_img_set_ver_str_type_and_len.len);
+    offset += rsp_dat->actv_comp_img_set_ver_str_type_and_len.len;
+    for (u8 i = 0; i < rsp_dat->pending_comp_img_set_ver_str_type_and_len.len; i++) {
+        printf("%c", rsp_dat->comp_img_set_ver_str[offset + i]);
+    }
+    LOG("");
+    offset += rsp_dat->pending_comp_img_set_ver_str_type_and_len.len;
+    pldm_fwup_comp_param_table_t *comp_parm_table = (pldm_fwup_comp_param_table_t *)&(rsp_dat->comp_img_set_ver_str[offset]);
+    for (u8 i = 0; i < rsp_dat->comp_cnt; i++) {
+        LOG("comp_classification : %d", comp_parm_table->comp_class_msg.comp_classification);
+        LOG("comp_identifier : %d", comp_parm_table->comp_class_msg.comp_identifier);
+        LOG("comp_classification_idx : %d", comp_parm_table->comp_class_msg.comp_classification_idx);
+
+        LOG("comp_comparison_stamp : %d", comp_parm_table->actv_comp_ver_msg.comp_comparison_stamp);
+        LOG("comp_ver_str_type : %d", comp_parm_table->actv_comp_ver_msg.comp_ver_str_type);
+        LOG("comp_ver_str_len : %d", comp_parm_table->actv_comp_ver_msg.comp_ver_str_len);
+
+        for (u8 j = 0; j < 8; j++) {
+            LOG("actv_comp_release_date[%d] : %d", j, comp_parm_table->actv_comp_release_date[j]);
+        }
+
+        LOG("comp_comparison_stamp : %d", comp_parm_table->pending_comp_ver_msg.comp_comparison_stamp);
+        LOG("comp_ver_str_type : %d", comp_parm_table->pending_comp_ver_msg.comp_ver_str_type);
+        LOG("comp_ver_str_len : %d", comp_parm_table->pending_comp_ver_msg.comp_ver_str_len);
+
+        for (u8 j = 0; j < 8; j++) {
+            LOG("actv_comp_release_date[%d] : %d", j, comp_parm_table->pending_comp_release_date[j]);
+        }
+
+        u8 *str = comp_parm_table->comp_ver_str;
+        for (u8 j = 0; j < comp_parm_table->actv_comp_ver_msg.comp_ver_str_len; j++) {
+            printf("%c", str[j]);
+        }
+        LOG("");
+
+        str = &(comp_parm_table->comp_ver_str[comp_parm_table->actv_comp_ver_msg.comp_ver_str_len]);
+        for (u8 j = 0; j < comp_parm_table->pending_comp_ver_msg.comp_ver_str_len; j++) {
+            printf("%c", str[j]);
+        }
+        LOG("");
+
+        LOG("comp_actv_meth : 0x%x", comp_parm_table->comp_actv_meth);
+        LOG("cap_during_ud : 0x%x", comp_parm_table->cap_during_ud);
+        comp_parm_table = (pldm_fwup_comp_param_table_t *)&(str[comp_parm_table->pending_comp_ver_msg.comp_ver_str_len]);
+    }
     gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_GET_FD_PARAM_AND_NOT_UPDATE;
 }
 
