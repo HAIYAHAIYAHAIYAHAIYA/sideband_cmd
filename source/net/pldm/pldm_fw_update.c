@@ -125,7 +125,7 @@ static void pldm_fwup_querydeviceidentifiers(protocol_msg_t *pkt, int *pkt_len)
     rsp_dat->descriptor.add_descriptor[3].add_len  = sizeof(rsp_dat->descriptor.add_descriptor[3].add_data) - 1;  /* 1 byte */
     rsp_dat->descriptor.add_descriptor[3].add_data = 0x01;
 
-    rsp_dat->dev_identifier_len = sizeof(pldm_descriptor_t) + sizeof(pldm_add_descriptor_t) * rsp_dat->descriptor_cnt - 1;
+    rsp_dat->dev_identifier_len = sizeof(pldm_add_descriptor_t) * rsp_dat->descriptor_cnt - 1;
 
     *pkt_len += rsp_dat->dev_identifier_len + sizeof(rsp_dat->descriptor_cnt) + sizeof(rsp_dat->dev_identifier_len);
 }
@@ -491,6 +491,8 @@ static void pldm_fwup_applycpl_recv(protocol_msg_t *pkt, int *pkt_len)
     }
 }
 
+void pldm_fwup_info_printf(pldm_fwup_base_info_t *fwup_info);
+
 static void pldm_fwup_activatefw(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_fwup_actv_fw_req_dat_t *req_dat = (pldm_fwup_actv_fw_req_dat_t *)(pkt->req_buf);
@@ -531,10 +533,11 @@ static void pldm_fwup_activatefw(protocol_msg_t *pkt, int *pkt_len)
     g_pldm_fwup_info.fw_active_set_info = g_pldm_fwup_info.fw_pending_set_info;
     pldm_component_info_t fw_cur_img_info = g_pldm_fwup_info.fw_cur_img_info[comp_identifier];
     g_pldm_fwup_info.fw_cur_img_info[comp_identifier] = g_pldm_fwup_info.fw_pending_img_info[comp_identifier];
-    u32 len = sizeof(u32) + sizeof(pldm_fwup_comp_img_info_t) + sizeof(pldm_component_info_t) * 3;
+    u32 len = sizeof(u32) + sizeof(pldm_fwup_comp_img_info_t) + sizeof(pldm_component_info_t) * PLDM_FWUP_COMP_TYPE_NUM;
     u32 active_img_state = g_pldm_fwup_info.active_img_state;
     g_pldm_fwup_info.active_img_state = g_pldm_fwup_info.pending_img_state;
-    sts_t sta = CM_FALSH_WRITE(g_pldm_fwup_info.nvm_fwup_info_addr, &g_pldm_fwup_info.active_img_state, len);
+    sts_t sta = CM_FALSH_WRITE(g_pldm_fwup_info.nvm_fwup_info_addr, &g_pldm_fwup_info.active_img_state, (len / sizeof(u32)));
+    // pldm_fwup_info_printf(&g_pldm_fwup_info);
     if (sta != 0x1) {
         LOG("flash write error");
     }
@@ -715,17 +718,17 @@ void pldm_fwup_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
 
 void pldm_fwup_info_printf(pldm_fwup_base_info_t *fwup_info)
 {
-    LOG("%d", fwup_info->active_img_state);
-    LOG("%d", fwup_info->fw_active_set_info.comp_img_set_ver_str_type_and_len.type);
-    LOG("%d", fwup_info->fw_active_set_info.comp_img_set_ver_str_type_and_len.len);
+    LOG("active_img_state : %d", fwup_info->active_img_state);
+    LOG("type : %d", fwup_info->fw_active_set_info.comp_img_set_ver_str_type_and_len.type);
+    LOG("len : %d", fwup_info->fw_active_set_info.comp_img_set_ver_str_type_and_len.len);
     for (u8 i = 0; i < fwup_info->fw_active_set_info.comp_img_set_ver_str_type_and_len.len; i++) {
         printf("%c", fwup_info->fw_active_set_info.comp_img_ver_str[i]);
     }
     LOG("");
 
     for (u8 i = 0; i < 3; i++) {
-        LOG("%d", fwup_info->fw_cur_img_info[i].comp_ver_str_type);
-        LOG("%d", fwup_info->fw_cur_img_info[i].comp_ver_str_len);
+        LOG("comp_ver_str_type : %d", fwup_info->fw_cur_img_info[i].comp_ver_str_type);
+        LOG("comp_ver_str_len : %d", fwup_info->fw_cur_img_info[i].comp_ver_str_len);
         for (u8 j = 0; j < fwup_info->fw_cur_img_info[i].comp_ver_str_len; j++) {
             printf("%c", fwup_info->fw_cur_img_info[i].comp_ver_str[j]);
         }
@@ -748,7 +751,7 @@ void pldm_fwup_init(void)
 
     g_pldm_fwup_info.nvm_fwup_info_addr = 0 + pldm_data_hdr.pldm_fwup_info_off;
     LOG("fwup info init from nvm, total len : %d, cnt : %d", pldm_data_hdr.pldm_fwup_info_off, pldm_data_hdr.pldm_fwup_info_size);
-    CM_FLASH_READ(g_pldm_fwup_info.nvm_fwup_info_addr, (void *)&g_pldm_fwup_info.active_img_state, (sizeof(pldm_component_info_t) * 3 + sizeof(pldm_fwup_comp_img_info_t) + sizeof(u8) * 4) / sizeof(u32));
+    CM_FLASH_READ(g_pldm_fwup_info.nvm_fwup_info_addr, (void *)&g_pldm_fwup_info.active_img_state, (sizeof(pldm_component_info_t) * PLDM_FWUP_COMP_TYPE_NUM + sizeof(pldm_fwup_comp_img_info_t) + sizeof(u32)) / sizeof(u32));
     // pldm_fwup_info_printf(&g_pldm_fwup_info);
 }
 

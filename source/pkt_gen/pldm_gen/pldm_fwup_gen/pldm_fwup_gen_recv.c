@@ -6,6 +6,18 @@ static pldm_fwup_req_fw_data_req_dat_t gs_fw_data_req_dat;
 
 static void pldm_fwup_gen_recv_cmd_01(u8 *buf)
 {
+    // pldm_query_dev_identifier_rsp_dat_t *rsp_dat = (pldm_query_dev_identifier_rsp_dat_t *)(buf + sizeof(pldm_response_t));
+    // LOG("dev_identifier_len : %d", rsp_dat->dev_identifier_len);
+    // LOG("descriptor_cnt : %d", rsp_dat->descriptor_cnt);
+    // LOG("init_type : %d", rsp_dat->descriptor.init_type);
+    // LOG("init_len : %d", rsp_dat->descriptor.init_len);
+    // LOG("init_data : 0x%x", rsp_dat->descriptor.init_data);
+    // pldm_add_descriptor_t *add_d = (pldm_add_descriptor_t *)(rsp_dat->descriptor.add_descriptor);
+    // for (u8 i = 0; i < rsp_dat->descriptor_cnt - 1; i++) {
+    //     LOG("add_type : %d", add_d[i].add_type);
+    //     LOG("add_len : %d", add_d[i].add_len);
+    //     LOG("add_data : 0x%x", add_d[i].add_data);
+    // }
     gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_GET_FD_INDENTIFY;
 }
 

@@ -22,6 +22,7 @@
 #define PLDM_PCI_REVISION_ID_REG                    (PLDM_PCI_ID_BASE + 0x8)
 
 #define PLDM_FWUP_RECV_IMG_NAME                     "recv_upgrade_slot.bin"
+#define PLDM_FWUP_COMP_TYPE_NUM                     1
 
 #define UPDATING_MODE                               TRUE
 #define NON_UPDATE_MODE                             FALSE
