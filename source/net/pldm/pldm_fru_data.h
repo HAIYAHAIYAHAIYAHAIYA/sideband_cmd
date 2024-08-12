@@ -9,19 +9,6 @@
 /* Attention ! DSP0257 pldm fru data spec do not have transfer buffersize. pldm_fru_get_fru_record_table rsp cmd's behavior may be err.  */
 #define PLDM_FRU_TRANSFER_BUFFERSIZE    PLDM_TERMINUS_DEFAULT_BUFFERSIZE
 
-/* TBD */
-#define CM_VENDOR_GET_PCI_DEV_ID                    (0)
-#define CM_VENDOR_GET_PCI_VENDOR_ID                 (0)
-#define CM_VENDOR_GET_PCI_SUBSYS_ID                 (0)
-#define CM_VENDOR_GET_PCI_SUBSYS_VENDOR_ID          (0)
-#define CM_VENDOR_GET_PCI_REVISION_ID               (0)
-
-// IANA 0x57584B4A 'WXKJ'
-#define CM_VENDOR_GET_VEMDOR_IANA                   ("CJCJ")
-
-#define CM_GET_FW_VERSION                           (0xFF00FF00)
-#define CM_GET_IMG_VERSION                          (~0xFF00FF00)
-
 typedef enum {
     RECORD_GENERAL_FRU_RECORD_TYPE = 0x01,
     RECORD_OEM_FRU_RECORD_TYPE = 0xFE
@@ -48,13 +35,14 @@ typedef enum {
 typedef enum {
     FIELD_OEM_VENDOR_IANA_TYPE = 0x0,         /* RECORD_OEM_FRU_RECORD_TYPE */
     FIELD_OEM_FW_VERSION_TYPE,
+    FIELD_OEM_VPD_SN_TYPE,
     FIELD_OEM_DID_TYPE,
     FIELD_OEM_VID_TYPE,
     FIELD_OEM_SSID_TYPE,
     FIELD_OEM_SVID_TYPE,
     FIELD_OEM_PCIE_LINK_SPD_TYPE,
     FIELD_OEM_PORT_NUM_TYPE = 0x1,
-    FIELD_OEM_LINK_SPD_CAP_TYPE,
+    FIELD_OEM_MAC_TYPE,
 } pldm_oem_fru_field_type_t;
 
 typedef enum {

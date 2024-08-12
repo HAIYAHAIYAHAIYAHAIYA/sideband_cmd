@@ -7,6 +7,30 @@ static u8 gs_pldm_fru_table[PLDM_FRU_TABLE_BUF_LEN];
 extern void pldm_unsupport_cmd(protocol_msg_t *pkt, int *pkt_len);
 extern u32 crc32_pldm(u32 init_crc, u8 *data, u32 len);
 
+#define CM_VENDOR_GET_VEMDOR_IANA                   htonl(0x56575859)
+#define CM_VENDOR_GET_PART_NUMBER                   "0"
+#define CM_VENDOR_GET_MANUFACTURER                  "0"
+#define CM_VENDOR_GET_MANUFACTURE_DATE              "2024-08-09-10"
+#define CM_VENDOR_GET_VENDOR                        "0"
+#define CM_VENDOR_GET_NAME                          "0"
+#define CM_VENDOR_GET_DESCRIPTION                   "0"
+
+#define CM_VENDOR_GET_VPD_SN                        NULL
+#define CM_VENDOR_GET_MAC(port, mac) \
+do { \
+} while(0)
+
+#define CM_VENDOR_GET_PCIE_LINK_SPD(val)            (void)val
+
+#define CM_GET_FW_VERSION                           (0x56575859)
+#define CM_GET_IMG_VERSION                          (0x56575859)
+
+#define CM_VENDOR_GET_PCI_DEV_ID                    0x56575859
+#define CM_VENDOR_GET_PCI_VENDOR_ID                 0x56575859
+#define CM_VENDOR_GET_PCI_SUBSYS_ID                 0x56575859
+#define CM_VENDOR_GET_PCI_SUBSYS_VENDOR_ID          0x56575859
+#define CM_VENDOR_GET_PCI_REVISION_ID               (0)
+
 static void pldm_fru_get_fru_record_table_metadata(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_fru_get_fru_record_table_metadata_rsp_dat_t *rsp_dat = (pldm_fru_get_fru_record_table_metadata_rsp_dat_t *)(pkt->rsp_buf);
@@ -85,18 +109,19 @@ void pldm_fru_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
 /* to be determind */
 u8 *pldm_fru_fill_general_part(u8 *buf, u8 *tlv_num)
 {
-    char vals[15][32];
+    char vals[15][48];
+    u32 vendor_iana = CM_VENDOR_GET_VEMDOR_IANA;
     cm_memset(vals, '\0', sizeof(vals));
 
-    snprintf(vals[FIELD_PART_NUM_TYPE], 32, "%s", "");
-    snprintf(vals[FIELD_SERIAL_NUM_TYPE], 32, "%d", MAX_LAN_NUM);
-    snprintf(vals[FIELD_MANUFACTURER_TYPE], 32, "%s", "");
-    snprintf(vals[FIELD_MANUFACTURER_DATE_TYPE], 13, "%s", "");
-    snprintf(vals[FIELD_VENDOR_TYPE], 32, "%s", "");
-    snprintf(vals[FIELD_NAME_TYPE], 32, "%s", "");
-    snprintf(vals[FIELD_VERSION_TYPE], 32, "Img Version is 0x%x", CM_GET_IMG_VERSION);
-    snprintf(vals[FIELD_DESCRIPTION_TYPE], 32, "%s", "");
-    snprintf(vals[FIELD_VENDOR_IANA_TYPE], 4, "%s", "");
+    cm_snprintf(vals[FIELD_PART_NUM_TYPE], 48, "%s", CM_VENDOR_GET_PART_NUMBER);
+    cm_snprintf(vals[FIELD_SERIAL_NUM_TYPE], 48, "%d", MAX_LAN_NUM);
+    cm_snprintf(vals[FIELD_MANUFACTURER_TYPE], 48, "%s", CM_VENDOR_GET_MANUFACTURER);
+    cm_snprintf(vals[FIELD_MANUFACTURER_DATE_TYPE], 14, "%s", CM_VENDOR_GET_MANUFACTURE_DATE);
+    cm_snprintf(vals[FIELD_VENDOR_TYPE], 48, "%s", CM_VENDOR_GET_VENDOR);
+    cm_snprintf(vals[FIELD_NAME_TYPE], 48, "%s", CM_VENDOR_GET_NAME);
+    cm_snprintf(vals[FIELD_VERSION_TYPE], 48, "Img Version is 0x%x", CM_GET_IMG_VERSION);
+    cm_snprintf(vals[FIELD_DESCRIPTION_TYPE], 48, "%s", CM_VENDOR_GET_DESCRIPTION);
+    cm_memcpy(vals[FIELD_VENDOR_IANA_TYPE], &vendor_iana, 4);
 
     pldm_fru_tlv_fmt_t *tlv = (pldm_fru_tlv_fmt_t *)buf;
     *tlv_num = sizeof(vals) / sizeof(vals[0]);
@@ -112,18 +137,23 @@ u8 *pldm_fru_fill_general_part(u8 *buf, u8 *tlv_num)
 /* to be determind */
 u8 *pldm_fru_fill_chip_part(u8 *buf, u8 *tlv_num)
 {
-    char vals[7][32];
-    // u8 mac[6];
-    // u8 vpd_sn[25];
+    char vals[8][32];
+    u8 vpd_sn[21];
+    u32 val = 0;
+    u32 vendor_iana = CM_VENDOR_GET_VEMDOR_IANA;
     cm_memset(vals, '\0', sizeof(vals));
 
-    snprintf(vals[FIELD_OEM_VENDOR_IANA_TYPE], 4, "%s", CM_VENDOR_GET_VEMDOR_IANA);
-    snprintf(vals[FIELD_OEM_FW_VERSION_TYPE], 48, "FW Version : 0x%x", CM_GET_FW_VERSION);
-    snprintf(vals[FIELD_OEM_DID_TYPE], 48, "DID : 0x%x", CM_VENDOR_GET_PCI_DEV_ID);
-    snprintf(vals[FIELD_OEM_VID_TYPE], 48, "VID : 0x%x", CM_VENDOR_GET_PCI_VENDOR_ID);
-    snprintf(vals[FIELD_OEM_SSID_TYPE], 48, "SSID : 0x%x", CM_VENDOR_GET_PCI_SUBSYS_ID);
-    snprintf(vals[FIELD_OEM_SVID_TYPE], 48, "SVID : 0x%x", CM_VENDOR_GET_PCI_SUBSYS_VENDOR_ID);
-    snprintf(vals[FIELD_OEM_PCIE_LINK_SPD_TYPE], 48, "PCIe Link Speed : 0x%x", "");
+    // CM_VENDOR_GET_VPD_SN(vpd_sn);
+    CM_VENDOR_GET_PCIE_LINK_SPD(&val);
+
+    cm_memcpy(vals[FIELD_OEM_VENDOR_IANA_TYPE], &vendor_iana, 4);
+    cm_snprintf(vals[FIELD_OEM_FW_VERSION_TYPE], 32, "FW Version : 0x%x", CM_GET_FW_VERSION);
+    cm_snprintf(vals[FIELD_OEM_VPD_SN_TYPE], 32, "VPD SN : 0x%s", vpd_sn);
+    cm_snprintf(vals[FIELD_OEM_DID_TYPE], 32, "DID : 0x%x", CM_VENDOR_GET_PCI_DEV_ID);
+    cm_snprintf(vals[FIELD_OEM_VID_TYPE], 32, "VID : 0x%x", CM_VENDOR_GET_PCI_VENDOR_ID);
+    cm_snprintf(vals[FIELD_OEM_SSID_TYPE], 32, "SSID : 0x%x", CM_VENDOR_GET_PCI_SUBSYS_ID);
+    cm_snprintf(vals[FIELD_OEM_SVID_TYPE], 32, "SVID : 0x%x", CM_VENDOR_GET_PCI_SUBSYS_VENDOR_ID);
+    cm_snprintf(vals[FIELD_OEM_PCIE_LINK_SPD_TYPE], 32, "PCIe Link Speed : 0x%x", val);
 
     pldm_fru_tlv_fmt_t *tlv = (pldm_fru_tlv_fmt_t *)buf;
     *tlv_num = sizeof(vals) / sizeof(vals[0]);
@@ -137,14 +167,19 @@ u8 *pldm_fru_fill_chip_part(u8 *buf, u8 *tlv_num)
 }
 
 /* to be determind */
-u8 *pldm_fru_fill_portn_part(u8 *buf, u8 port, u8 *tlv_num)
+u8 *pldm_fru_fill_portn_part(u8 *buf, u8 port_id, u8 *tlv_num)
 {
     char vals[3][48];
+    u8 mac[6];
+    u32 vendor_iana = CM_VENDOR_GET_VEMDOR_IANA;
     cm_memset(vals, '\0', sizeof(vals));
+    cm_memset(mac, 0, sizeof(mac));
 
-    snprintf(vals[FIELD_OEM_VENDOR_IANA_TYPE], 4, "%s", CM_VENDOR_GET_VEMDOR_IANA);
-    snprintf(vals[FIELD_OEM_PORT_NUM_TYPE], 48, "Port Name : %d", port);
-    snprintf(vals[FIELD_OEM_LINK_SPD_CAP_TYPE], 48, "Link Speed Capabilities : X%d", "");
+    CM_VENDOR_GET_MAC(port_id, mac);
+
+    cm_memcpy(vals[FIELD_OEM_VENDOR_IANA_TYPE], &vendor_iana, 4);
+    cm_snprintf(vals[FIELD_OEM_PORT_NUM_TYPE], 48, "Port Name : %d", port_id);
+    cm_snprintf(vals[FIELD_OEM_MAC_TYPE], 48, "mac : 0x%x:0x%x:0x%x:0x%x:0x%x:0x%x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     pldm_fru_tlv_fmt_t *tlv = (pldm_fru_tlv_fmt_t *)buf;
     *tlv_num = sizeof(vals) / sizeof(vals[0]);
@@ -203,7 +238,7 @@ u8 *pldm_fru_fill_sub_part(u8 *buf)
     return next_part;
 }
 
-static void pldm_fru_data_printf(pldm_fru_record_table_fmt_t *fru_data)
+void pldm_fru_data_printf(pldm_fru_record_table_fmt_t *fru_data)
 {
     LOG("fru_data_major_ver : %d", fru_data->head.fru_data_major_ver);
     LOG("fru_data_minor_ver : %d", fru_data->head.fru_data_minor_ver);
@@ -211,7 +246,6 @@ static void pldm_fru_data_printf(pldm_fru_record_table_fmt_t *fru_data)
     LOG("fru_table_maxi_size : %d", fru_data->head.fru_table_maxi_size);
     LOG("num_of_records : %d", fru_data->head.num_of_records);
     LOG("num_of_records_set_identifiers : %d", fru_data->head.num_of_records_set_identifiers);
-    LOG("");
 
     pldm_fru_record_table_field_fmt_t *field = &(fru_data->field);
 
@@ -228,7 +262,7 @@ static void pldm_fru_data_printf(pldm_fru_record_table_fmt_t *fru_data)
             for (u8 k = 0; k < tlv->len; k++) {
                 printf("%c", tlv->val[k]);
             }
-            printf("\n");
+            LOG("");
             ptr = (u8 *)(&tlv->val[tlv->len]);
         }
         field = (pldm_fru_record_table_field_fmt_t *)ptr;
@@ -245,10 +279,10 @@ void pldm_fru_init(void)
     table->head.num_of_records_set_identifiers = 2 + MAX_LAN_NUM;
     table->head.num_of_records = 1;                                     /* may be equal to num_of_records_set_identifiers ! */
     u8 *next_part = (u8 *)&(table->field);
-    next_part = pldm_fru_fill_main_part(next_part);
-    next_part = pldm_fru_fill_sub_part(next_part);
+    next_part = pldm_fru_fill_main_part(next_part);         /* general part, chip part */
+    next_part = pldm_fru_fill_sub_part(next_part);          /* port n part */
 
     table->head.fru_table_len = next_part - gs_pldm_fru_table - sizeof(pldm_fru_get_fru_record_table_metadata_rsp_dat_t);
-    LOG("used len : %d", next_part - gs_pldm_fru_table);
-    // pldm_fru_data_printf(table);
+
+    pldm_fru_data_printf(table);
 }
