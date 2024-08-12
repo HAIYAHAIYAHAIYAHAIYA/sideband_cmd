@@ -995,9 +995,10 @@ void pldm_monitor_init(void)
     for (u8 i = 0; i < MAX_LAN_NUM; i++) {
         pldm_link_handle(i, 1);
     }
-    // pldm_monitor_printf_repo(&(g_pldm_monitor_info.pldm_repo));
+#if PLDM_MONITOR_DUMP_EN
+    pldm_monitor_printf_repo(&(g_pldm_monitor_info.pldm_repo));
     pldm_pdr_get_used();
-
+#endif
 }
 
 void pldm_monitor_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)

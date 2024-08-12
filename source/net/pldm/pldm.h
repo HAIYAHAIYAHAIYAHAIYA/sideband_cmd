@@ -4,6 +4,10 @@
 #include "main.h"
 #include "protocol_device.h"
 
+#define PLDM_MONITOR_DUMP_EN            0
+#define PLDM_FRU_DUMP_EN                0
+#define PLDM_FWUP_DUMP_EN               0
+
 #pragma pack(1)
 typedef struct {
     u8 instance_id  : 5;

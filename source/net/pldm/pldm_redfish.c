@@ -1095,7 +1095,7 @@ u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dic
     if (!len)
         len = pldm_redfish_get_dict_len(resource_id, requested_schemaclass);
 
-    CM_FLASH_READ(PLDM_REDFISH_DICT_BASE_ADDR, (u32 *)dict_info_buf, PLDM_REDFISH_DICT_INFO_LEN / sizeof(u32));
+    CM_FLASH_READ(g_pldm_redfish_base_info.pldm_redfish_dictionary_addr, (u32 *)dict_info_buf, PLDM_REDFISH_DICT_INFO_LEN / sizeof(u32));
 
     pldm_redfish_dict_hdr_t *dict_info  = (pldm_redfish_dict_hdr_t *)dict_info_buf;
     for (u8 i = 0; i < dict_info->num_of_dict; i++) {
@@ -1106,7 +1106,7 @@ u8 pldm_redfish_get_dict_data(u32 resource_id, u8 requested_schemaclass, u8 *dic
     }
     if (dict_addr) {
         // LOG("dict_addr : %d", dict_addr);
-        CM_FLASH_READ(PLDM_REDFISH_DICT_BASE_ADDR + dict_addr, (u32 *)dict, len / sizeof(u32));
+        CM_FLASH_READ(g_pldm_redfish_base_info.pldm_redfish_dictionary_addr + dict_addr, (u32 *)dict, len / sizeof(u32));
     } else {
         LOG("not found dict data, resource_id : %d, requested_schemaclass : %d", resource_id, requested_schemaclass);
         return false;
@@ -1144,9 +1144,12 @@ void pldm_redfish_init(void)
     pldm_data_hdr_t pldm_data_hdr = {0};
     CM_FLASH_READ(0, (void *)&pldm_data_hdr, (sizeof(pldm_data_hdr_t) / sizeof(u32)));
 
+    g_pldm_redfish_base_info.pldm_redfish_dictionary_addr = pldm_data_hdr.pldm_redfish_dict_off;
     g_pldm_redfish_base_info.mc_maximum_xfer_chunksize_bytes = PLDM_REDFISH_DEV_MAXIMUM_XFER_CHUNKSIZE_BYTES;
     g_pldm_redfish_base_info.prev_op_identify.resource_id = 0;
     g_pldm_redfish_base_info.prev_op_identify.op_id = 0;
+
+    LOG("pldm_redfish_dictionary_addr : 0x%x", g_pldm_redfish_base_info.pldm_redfish_dictionary_addr);
 
     pldm_redfish_clear_op_param();
 

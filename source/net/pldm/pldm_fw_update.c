@@ -104,26 +104,18 @@ static void pldm_fwup_querydeviceidentifiers(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_query_dev_identifier_rsp_dat_t *rsp_dat = (pldm_query_dev_identifier_rsp_dat_t *)(pkt->rsp_buf);
 
+    /* PLDM_PCI_VENDOR_ID must is first. (Initial Descriptor) */
+    /* refer to https://www.dmtf.org/sites/default/files/standards/documents/DSP0267_1.2.0.pdf, Table 8 – Descriptor Identifier Table */
+    u16 type[] = {PLDM_PCI_VENDOR_ID, PLDM_PCI_DEV_ID, PLDM_PCI_SUBSYS_VENDOR_ID, PLDM_PCI_SUBSYS_ID, PLDM_PCI_REVISION_ID};
+    u16 data[] = {0, 0, 0, 0, 0};
+
     rsp_dat->descriptor_cnt = 5;
-    rsp_dat->descriptor.init_type = PLDM_PCI_VENDOR_ID;                                                           /* PCI Vendor ID */
-    rsp_dat->descriptor.init_len  = sizeof(rsp_dat->descriptor.init_data);
-    rsp_dat->descriptor.init_data = 0x8086;                                                                       /* 0x8086 */
 
-    rsp_dat->descriptor.add_descriptor[0].add_type = PLDM_PCI_DEV_ID;
-    rsp_dat->descriptor.add_descriptor[0].add_len  = sizeof(rsp_dat->descriptor.add_descriptor[0].add_data);      /* 2 byte */
-    rsp_dat->descriptor.add_descriptor[0].add_data = REG(PLDM_PCI_DEV_ID_REG);
-
-    rsp_dat->descriptor.add_descriptor[1].add_type = PLDM_PCI_SUBSYS_VENDOR_ID;
-    rsp_dat->descriptor.add_descriptor[1].add_len  = sizeof(rsp_dat->descriptor.add_descriptor[1].add_data);      /* 2 byte */
-    rsp_dat->descriptor.add_descriptor[1].add_data = 0x8086;
-
-    rsp_dat->descriptor.add_descriptor[2].add_type = PLDM_PCI_SUBSYS_ID;
-    rsp_dat->descriptor.add_descriptor[2].add_len  = sizeof(rsp_dat->descriptor.add_descriptor[2].add_data);      /* 2 byte */
-    rsp_dat->descriptor.add_descriptor[2].add_data = REG(PLDM_PCI_SUBSYS_ID_REG);
-
-    rsp_dat->descriptor.add_descriptor[3].add_type = PLDM_PCI_REVISION_ID;
-    rsp_dat->descriptor.add_descriptor[3].add_len  = sizeof(rsp_dat->descriptor.add_descriptor[3].add_data) - 1;  /* 1 byte */
-    rsp_dat->descriptor.add_descriptor[3].add_data = 0x01;
+    for (u8 i = 0; i < rsp_dat->descriptor_cnt; i++) {
+        rsp_dat->add_descriptor[i].add_type = type[i];
+        rsp_dat->add_descriptor[i].add_len = (i != rsp_dat->descriptor_cnt - 1) ? 2 : 1;
+        rsp_dat->add_descriptor[i].add_data = data[i];
+    }
 
     rsp_dat->dev_identifier_len = sizeof(pldm_add_descriptor_t) * rsp_dat->descriptor_cnt - 1;
 
@@ -134,6 +126,7 @@ static void pldm_fwup_getfirmwareparameters(protocol_msg_t *pkt, int *pkt_len)
 {
     pldm_get_fw_param_rsp_dat_t *rsp_dat = (pldm_get_fw_param_rsp_dat_t *)(pkt->rsp_buf);
     /* BIT2 : Device host functionality will be reduced, perhaps becoming inaccessible, during Firmware Update. */
+    rsp_dat->comp_cnt = 0;
     rsp_dat->cap_during_ud = CBIT(2) | CBIT(3) | CBIT(1);       // bit8
     rsp_dat->actv_comp_img_set_ver_str_type_and_len = g_pldm_fwup_info.fw_active_set_info.comp_img_set_ver_str_type_and_len;
     u32 str_len = rsp_dat->actv_comp_img_set_ver_str_type_and_len.len;
@@ -752,7 +745,9 @@ void pldm_fwup_init(void)
     g_pldm_fwup_info.nvm_fwup_info_addr = 0 + pldm_data_hdr.pldm_fwup_info_off;
     LOG("fwup info init from nvm, total len : %d, cnt : %d", pldm_data_hdr.pldm_fwup_info_off, pldm_data_hdr.pldm_fwup_info_size);
     CM_FLASH_READ(g_pldm_fwup_info.nvm_fwup_info_addr, (void *)&g_pldm_fwup_info.active_img_state, (sizeof(pldm_component_info_t) * PLDM_FWUP_COMP_TYPE_NUM + sizeof(pldm_fwup_comp_img_info_t) + sizeof(u32)) / sizeof(u32));
-    // pldm_fwup_info_printf(&g_pldm_fwup_info);
+#if PLDM_FWUP_DUMP_EN
+    pldm_fwup_info_printf(&g_pldm_fwup_info);
+#endif
 }
 
 static void pldm_fwup_timeout_process(void)

@@ -13,8 +13,6 @@
 #define PLDM_OP_INIT_FIELD_LEN                              (sizeof(pldm_redfish_rde_operation_init_req_dat_t) + sizeof(pldm_response_t))
 #define PLDM_REDFISH_DICT_INFO_LEN                          ALIGN((sizeof(pldm_redfish_dict_hdr_t) + PLDM_REDFISH_DICT_NUM * sizeof(pldm_redfish_dict_info_t)), 4)
 
-#define PLDM_REDFISH_DICT_BASE_ADDR                         (0x238)
-
 #define NETWORK_ADAPTER_SCHEMACLASS                         (BIT(SCHEMACLASS_MAJOR))
 #define NETWORK_INTERFACE_SCHEMACLASS                       (BIT(SCHEMACLASS_MAJOR))
 #define PCIE_DEVICE_SCHEMACLASS                             (BIT(SCHEMACLASS_MAJOR))
@@ -487,6 +485,7 @@ typedef struct {
 typedef struct {
     pldm_redfish_op_identify_t prev_op_identify;
     u32 mc_maximum_xfer_chunksize_bytes;        /* for MultipartSend/Receive commands. */
+    u32 pldm_redfish_dictionary_addr;
 } pldm_redfish_base_info_t;
 
 typedef struct {

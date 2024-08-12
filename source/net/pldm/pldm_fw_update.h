@@ -22,7 +22,7 @@
 #define PLDM_PCI_REVISION_ID_REG                    (PLDM_PCI_ID_BASE + 0x8)
 
 #define PLDM_FWUP_RECV_IMG_NAME                     "recv_upgrade_slot.bin"
-#define PLDM_FWUP_COMP_TYPE_NUM                     1
+#define PLDM_FWUP_COMP_TYPE_NUM                     3
 
 #define UPDATING_MODE                               TRUE
 #define NON_UPDATE_MODE                             FALSE
@@ -189,16 +189,9 @@ typedef struct {
 } pldm_add_descriptor_t;
 
 typedef struct {
-    u16 init_type;
-    u16 init_len;
-    u16 init_data;
-    pldm_add_descriptor_t add_descriptor[0];    /* E810 : PCI Device ID, PCI Subsystem Vendor ID, PCI Subsystem ID, PCI Revision ID (option). */
-} pldm_descriptor_t;
-
-typedef struct {
     u32 dev_identifier_len;
     u8 descriptor_cnt;
-    pldm_descriptor_t descriptor;
+    pldm_add_descriptor_t add_descriptor[0];    /* E810 : PCI Device ID, PCI Subsystem Vendor ID, PCI Subsystem ID, PCI Revision ID (option). */
 } pldm_query_dev_identifier_rsp_dat_t;
 
 // typedef struct {

@@ -283,6 +283,7 @@ void pldm_fru_init(void)
     next_part = pldm_fru_fill_sub_part(next_part);          /* port n part */
 
     table->head.fru_table_len = next_part - gs_pldm_fru_table - sizeof(pldm_fru_get_fru_record_table_metadata_rsp_dat_t);
-
+#if PLDM_FRU_DUMP_EN
     pldm_fru_data_printf(table);
+#endif
 }
