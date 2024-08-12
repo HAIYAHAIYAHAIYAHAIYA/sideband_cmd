@@ -981,7 +981,7 @@ void pldm_redfish_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
 
 void CM_FLASH_READ(u32 offset, u32 *buf, u32 size)
 {
-    FILE *fp = fopen("./build/pldm_data.bin", "r+b");
+    FILE *fp = fopen("./build/pldm_data_ori.bin", "r+b");
     if (!fp) {
         LOG("CM_FLASH_READ open file err!");
         return;
@@ -993,7 +993,16 @@ void CM_FLASH_READ(u32 offset, u32 *buf, u32 size)
 
 sts_t CM_FALSH_WRITE(u32 offset, u32 *buf, u32 size)
 {
-
+    FILE *fp = fopen("./build/pldm_data.bin", "r+b");
+    if (!fp) {
+        LOG("CM_FLASH_READ open file err!");
+        return -1;
+    }
+    fseek(fp, offset, SEEK_SET);
+    int ret = fwrite(buf, sizeof(u32), size, fp);
+    LOG("ret : %d", ret);
+    fclose(fp);
+    return 0x1;
 }
 u32 pldm_redfish_resource_id_to_base(u32 resource_id)
 {
