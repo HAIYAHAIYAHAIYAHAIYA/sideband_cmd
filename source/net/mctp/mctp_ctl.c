@@ -60,7 +60,7 @@ static int mctp_set_eid(protocol_msg_t *pkt, int *pkt_len)
     rsp_dat->eid_set = g_mctp_ctrl_info[pkt->mctp_hw_id].dev_eid;
     rsp_dat->eid_pool_sz = 0;
 
-    // terminus_locator_pdr_chg();
+    terminus_locator_pdr_chg();
 
     *pkt_len += sizeof(set_eid_rsp_dat);
     return SUCCESS;

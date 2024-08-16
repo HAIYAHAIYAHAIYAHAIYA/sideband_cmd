@@ -23,7 +23,7 @@ void pldm_ctrl_set_tid(protocol_msg_t *pkt, int *pkt_len)
     }
 
     g_pldm_monitor_info.tid = req_dat->tid;
-    // terminus_locator_pdr_chg();
+    terminus_locator_pdr_chg();
     LOG("%s tid : %#x", __FUNCTION__, req_dat->tid);
 }
 
