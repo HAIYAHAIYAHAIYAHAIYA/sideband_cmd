@@ -1430,13 +1430,18 @@ static void pldm_delete_comm_chan_assoc_pdr(u8 port)
 
 void terminus_locator_pdr_chg(void)
 {
-    pldm_terminus_locator_pdr_t *terminus_locator_pdr = (pldm_terminus_locator_pdr_t *)pldm_pdr_is_exist(&(g_pldm_monitor_info.pldm_repo), PLDM_TERMINUS_LOCATOR_PDR_HANDLE);
+    pldm_pdr_record_t *is_find = (pldm_pdr_record_t *)pldm_pdr_find(&(g_pldm_monitor_info.pldm_repo), PLDM_TERMINUS_LOCATOR_PDR_HANDLE);
+    if (!is_find)
+        return;
+    pldm_terminus_locator_pdr_t *terminus_locator_pdr = (pldm_terminus_locator_pdr_t *)(is_find->data);
     if ((g_pldm_monitor_info.tid != terminus_locator_pdr->tid) || (g_mctp_ctrl_info[1].dev_eid != terminus_locator_pdr->eid)) {
         g_pldm_monitor_info.repo_state = PLDM_REPO_UPDATE_IN_PROGRESS;
+        terminus_locator_pdr->hdr.record_change_num++;
         terminus_locator_pdr->tid = g_pldm_monitor_info.tid;
         terminus_locator_pdr->eid = g_mctp_ctrl_info[1].dev_eid;      /* 待定 */
         pldm_pdr_chg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_REPO_CHG_FORMAT_ID_PDR_HANDLE, PLDM_REPO_CHG_RECORDS_MODIFIED, PLDM_TERMINUS_LOCATOR_PDR_HANDLE);
         g_pldm_monitor_info.repo_state = PLDM_REPO_AVAILABLE;
+        pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));
     }
 }
 
