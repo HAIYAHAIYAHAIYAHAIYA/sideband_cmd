@@ -8,6 +8,8 @@
 u16 g_event_id = 1;
 extern pldm_monitor_base_info_t g_pldm_monitor_info;
 extern u8 g_anno_dict[PLDM_REDFISH_ANNO_DICT_LEN];
+extern u8 g_needed_dict[PLDM_REDFISH_NETWORK_ADAPTER_DICT_LEN];
+
 typedef struct {
     u8 buf[PLDM_TERMINUS_MAX_BUFFERSIZE];
     u16 rd;
@@ -106,6 +108,41 @@ int pldm_event_rbuf_write(void *p, void *dat, int len)
     return 0;
 }
 
+static u8 pldm_op_state_sensor_event(void *data_struct, pldm_sensor_event_class_event_data_format_t *sensor_event_dat)
+{
+    if (!data_struct || !sensor_event_dat) return 0;
+    pldm_data_struct_t *op_state = (pldm_data_struct_t *)data_struct;
+    sensor_event_dat->sensor_id = op_state->sensor_id;
+
+    cm_memcpy((void *)sensor_event_dat->field_per_event_class, (void *)op_state, sizeof(pldm_field_per_sensor_op_state_format_t));
+
+    return sizeof(pldm_field_per_sensor_op_state_format_t);
+}
+
+static u8 pldm_state_sensor_event(void *data_struct, pldm_sensor_event_class_event_data_format_t *sensor_event_dat)
+{
+    if (!data_struct || !sensor_event_dat) return 0;
+    pldm_state_data_struct_t *sensor_state = (pldm_state_data_struct_t *)data_struct;
+    sensor_event_dat->sensor_id = sensor_state->sensor_id;
+
+    cm_memcpy((void *)sensor_event_dat->field_per_event_class, (void *)&(sensor_state->sensor_offset), sizeof(pldm_field_per_state_sensor_state_format_t));
+
+    return sizeof(pldm_field_per_state_sensor_state_format_t);
+}
+
+static u8 pldm_numeric_sensor_event(void *data_struct, pldm_sensor_event_class_event_data_format_t *sensor_event_dat)
+{
+    if (!data_struct || !sensor_event_dat) return 0;
+    pldm_data_struct_t *sensor_numeric = (pldm_data_struct_t *)data_struct;
+    u8 len = sensor_numeric->sensor_data_size == PLDM_DATASIZE_UINT8 ? 1 : 4;
+
+    sensor_event_dat->sensor_id = sensor_numeric->sensor_id;
+
+    cm_memcpy((void *)sensor_event_dat->field_per_event_class, (void *)&(sensor_numeric->present_state), sizeof(pldm_field_per_numeric_sensor_state_format_t) + len);
+
+    return sizeof(pldm_field_per_numeric_sensor_state_format_t) + len;
+}
+
 void pldm_sensor_event_generate(void *p, u8 sensor_event_class, u8 event_msg_en, void *data_struct)
 {
     if (!p || g_pldm_monitor_info.terminus_mode == PLDM_DISABLE || !data_struct) {
@@ -124,34 +161,20 @@ void pldm_sensor_event_generate(void *p, u8 sensor_event_class, u8 event_msg_en,
 
     sensor_event->event_data_size = sizeof(pldm_sensor_event_class_event_data_format_t);
 
+    sensor_event_dat->sensor_event_class = sensor_event_class;
+
+    u8 dat_len = 0;
     if (sensor_event_class == PLDM_SENSOR_OP_STATE) {                               /* change of the sensor's operational state */
-        pldm_data_struct_t *op_state = (pldm_data_struct_t *)data_struct;
-        sensor_event_dat->sensor_id = op_state->sensor_id;
-        sensor_event_dat->sensor_event_class = PLDM_SENSOR_OP_STATE;
-
-        cm_memcpy((void *)sensor_event_dat->field_per_event_class, (void *)op_state, sizeof(pldm_field_per_sensor_op_state_format_t));
-
-        sensor_event->event_data_size += sizeof(pldm_field_per_sensor_op_state_format_t);
+        dat_len = pldm_op_state_sensor_event(data_struct, sensor_event_dat);
     } else if (sensor_event_class == PLDM_STATE_SENSOR_STATE) {                     /* change in the present state */
-        pldm_state_data_struct_t *sensor_state = (pldm_state_data_struct_t *)data_struct;
-        sensor_event_dat->sensor_id = sensor_state->sensor_id;
-        sensor_event_dat->sensor_event_class = PLDM_STATE_SENSOR_STATE;
-
-        cm_memcpy((void *)sensor_event_dat->field_per_event_class, (void *)&(sensor_state->sensor_offset), sizeof(pldm_field_per_state_sensor_state_format_t));
-
-        sensor_event->event_data_size += sizeof(pldm_field_per_state_sensor_state_format_t);
+        dat_len = pldm_state_sensor_event(data_struct, sensor_event_dat);
     } else if (sensor_event_class == PLDM_NUMERIC_SENSOR_STATE) {                   /* change in the present state */
-        pldm_data_struct_t *sensor_numeric = (pldm_data_struct_t *)data_struct;
-        sensor_event_dat->sensor_id = sensor_numeric->sensor_id;
-        sensor_event_dat->sensor_event_class = PLDM_NUMERIC_SENSOR_STATE;
-
-        cm_memcpy((void *)sensor_event_dat->field_per_event_class, (void *)&(sensor_numeric->present_state), sizeof(pldm_field_per_numeric_sensor_state_format_t));
-
-        sensor_event->event_data_size += sizeof(pldm_field_per_numeric_sensor_state_format_t);
+        dat_len = pldm_numeric_sensor_event(data_struct, sensor_event_dat);
     } else {
         LOG("error sensor event class : %d", sensor_event_class);
         goto L_RET;
     }
+    sensor_event->event_data_size += dat_len;
     pldm_event_rbuf_write(p, sensor_event, sizeof(pldm_event_data_t) + sensor_event->event_data_size);
 
 L_RET:
@@ -207,16 +230,14 @@ void pldm_redfish_msg_event_generate(void *p, u32 resource_id, u8 link_state)
     if (!p || g_pldm_monitor_info.terminus_mode == PLDM_DISABLE) {
         return;
     }
-    u8 event_dict[PLDM_REDFISH_EVENT_DICT_LEN];
-    u8 event_buf[256] = {0};
-
-    u8 ret = pldm_redfish_get_dict_data(PLDM_BASE_EVENT_DICT_RESOURCE_ID, SCHEMACLASS_EVENT, event_dict, PLDM_REDFISH_EVENT_DICT_LEN);
+    u8 event_buf[256] = {0};            /* pldm redfish msg event size is 223 bytes */
+    u8 ret = pldm_redfish_get_dict_data(PLDM_BASE_EVENT_DICT_RESOURCE_ID, SCHEMACLASS_EVENT, g_needed_dict, PLDM_REDFISH_EVENT_DICT_LEN);
     if (ret == false) return;
 
     u8 *anno_dict = &g_anno_dict[DICT_FMT_HDR_LEN];
     pldm_event_data_t *msg_event = (pldm_event_data_t *)event_buf;
     pldm_redfish_msg_event_data_format_t *msg_event_data = (pldm_redfish_msg_event_data_format_t *)(msg_event->data);
-    pldm_redfish_dictionary_format_t *event_dict_ptr = (pldm_redfish_dictionary_format_t *)&event_dict[DICT_FMT_HDR_LEN];
+    pldm_redfish_dictionary_format_t *event_dict_ptr = (pldm_redfish_dictionary_format_t *)&g_needed_dict[DICT_FMT_HDR_LEN];
 
     msg_event->event_id = g_event_id++;
     msg_event->event_class = REDFISH_MSG_EVENT;
@@ -233,6 +254,7 @@ void pldm_redfish_msg_event_generate(void *p, u32 resource_id, u8 link_state)
     if (!root) return;
     pldm_cjson_cal_sf_to_root(root, anno_dict, (u8 *)event_dict_ptr);
     pldm_cjson_cal_len_to_root(root, OTHER_TYPE);
+    pldm_cjson_update_etag(root);
     u8 *end_ptr = pldm_bej_encode(root, ((u8 *)ptr + sizeof(bejencoding_t)));
     msg_event_data->event_data_len = end_ptr - (u8 *)ptr;
     pldm_cjson_pool_reinit();

@@ -27,9 +27,19 @@
 #define CM_MODULE_GET_VOLTAGE_DATA(port)            (0)
 #define CM_MODULE_GET_POWER_DATA(port)              (0)
 #define CM_MODULE_GET_IDENTIFIER(port)              (0)
+/* sign  | temperature hign . temperature low */
+/* bit 1 | bit 7 | bit 8 */
 #define CM_MODULE_GET_WARN_DATA(port)               (0)
-#define CM_MODULE_GET_ALARM_DATA(port)              (0)
+#define CM_MODULE_GET_CRITICAL_DATA(port)           (0)
+#define CM_MODULE_GET_FATAL_DATA(port)              (0)
+/* example : return is 25, 10, 40 (G) */
 #define CM_MODULE_GET_SIGNAL_RATE_DATA(port)        (0)
+
+/* TBD */
+#define CM_NIC_GET_TEMPERATURE_DATE                 (0)
+#define CM_NIC_GET_WARN_DATA                        (100)
+#define CM_NIC_GET_CRITICAL_DATA                    (110)
+#define CM_NIC_GET_FATAL_DATA                       (120)
 
 #define LINK_DOWN                               0
 #define LINK_UP                                 1

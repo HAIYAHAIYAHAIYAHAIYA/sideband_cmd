@@ -740,7 +740,7 @@ static void pldm_delete_assoc_pdr(u32 assoc_record_handle)
 
 void pldm_modify_state_datastruct(u8 present_state, pldm_state_data_struct_t *datastruct)
 {
-    if (!datastruct) return;
+    if (!datastruct || datastruct->op_state != PLDM_OP_ENABLE) return;
     datastruct->previous_state = datastruct->present_state;
     datastruct->present_state = present_state;
     if (datastruct->previous_state != present_state) {
@@ -1484,37 +1484,24 @@ void pldm_link_handle(u8 port, u8 link_state)
     pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));
 }
 
-/* 摄氏度 */
-static void pldm_temperature_date_update(u8 port)
+/* 初始化更新pdr */
+void pldm_thermal_sensor_pdr_update(u16 sensor_id, u8 sensor_type, u8 port)
 {
-    u16 raw_val = CM_MODULE_GET_TEMPERATURE_DATE(port);
+    pldm_temp_sensor_threshold_data_t temp_data;
+    pldm_pdr_record_t *is_find = NULL;
+    u32 record_hanle = sensor_id_convert_to_record_handle(sensor_id);
 
-    u16 sign = raw_val & CBIT(15);
-    if (sign) {
-        raw_val = (~raw_val);
-        raw_val++;
+    is_find = pldm_pdr_find(&(g_pldm_monitor_info.pldm_repo), record_hanle);
+    if (!is_find) {
+        LOG("[pldm_thermal_sensor_pdr_update], err record handle : %d", record_hanle);
+        return;
     }
+    pldm_get_temp_sensor_threshold(&temp_data, sensor_type, port);
 
-    raw_val = raw_val >> 8;                      // 只保留整数部分
-
-    if (sign) raw_val |= CBIT(15);
-
-    temp_sensors[PLUG_TEMP_SENSOR][port].present_reading = raw_val;
-}
-
-/* maybe not used */
-/* 伏特 */
-// static void pldm_voltage_data_update(u8 port)
-// {
-//     u16 raw_val = CM_MODULE_GET_VOLTAGE_DATA(port);
-//     raw_val = (raw_val + (VOLTAGE_UNIT_CONVER / 2)) / VOLTAGE_UNIT_CONVER;
-// }
-
-/* 0.1微瓦 */
-static void pldm_power_data_update(u8 port)
-{
-    u16 raw_val = CM_MODULE_GET_POWER_DATA(port);
-    plug_power_sensors[port].present_reading = raw_val;
+    pldm_numeric_sensor_pdr_t *thermal_pdr = (pldm_numeric_sensor_pdr_t *)(is_find->data);
+    thermal_pdr->thermal_pdr.warning_high = temp_data.warning_high;
+    thermal_pdr->thermal_pdr.critical_high = temp_data.critical_high;
+    thermal_pdr->thermal_pdr.fatal_high = temp_data.fatal_high;
 }
 
 /* refer to SFF-8024 Rev 4.6, https://www.gigalight.com/downloads/standards/sff-8024.pdf */
@@ -1540,51 +1527,24 @@ static void pldm_identifier_update(u8 port)
 }
 
 /* 摄氏度 */
-static void pldm_warn_data_update(pldm_temp_sensor_threshold_data_t *temp_data, u8 port)
-{
-    u16 raw_val = CM_MODULE_GET_WARN_DATA(port);
-
-    u16 sign = raw_val & CBIT(15);
-    if (sign) {
-        raw_val = (~raw_val);
-        raw_val++;
-    }
-
-    raw_val = raw_val >> 8;                      // 只保留整数部分
-
-    if (sign) raw_val |= CBIT(15);
-    temp_data->warning_high = raw_val;
-}
-
-/* 摄氏度 */
-static void pldm_alarm_data_update(pldm_temp_sensor_threshold_data_t *temp_data, u8 port)
-{
-    u16 raw_val = CM_MODULE_GET_ALARM_DATA(port);
-
-    u16 sign = raw_val & CBIT(15);
-    if (sign) {
-        raw_val = (~raw_val);
-        raw_val++;
-    }
-
-    raw_val = raw_val >> 8;                      // 只保留整数部分
-
-    if (sign) raw_val |= CBIT(15);
-    temp_data->critical_high = raw_val;
-    temp_data->fatal_high = raw_val;
-}
-
 void pldm_get_temp_sensor_threshold(pldm_temp_sensor_threshold_data_t *temp_data, u8 sensor_type, u8 port)
 {
     if (!temp_data || port >= MAX_LAN_NUM) return;
     switch(sensor_type) {
         case PLUG_TEMP_SENSOR:
-            pldm_warn_data_update(temp_data, port);
-            pldm_alarm_data_update(temp_data, port);
+            /* 保留整数 (0 ~ 127) */
+            temp_data->warning_high = CM_MODULE_GET_WARN_DATA(port);
+            temp_data->critical_high = CM_MODULE_GET_CRITICAL_DATA(port);
+            temp_data->fatal_high = CM_MODULE_GET_FATAL_DATA(port);
+            temp_data->warning_high >>= 8;
+            temp_data->critical_high >>= 8;
+            temp_data->fatal_high >>= 8;
             break;
         case NIC_TEMP_SENSOR:
-            break;
         case NC_TEMP_SENSOR:
+            temp_data->warning_high = CM_NIC_GET_WARN_DATA;
+            temp_data->critical_high = CM_NIC_GET_CRITICAL_DATA;
+            temp_data->fatal_high = CM_NIC_GET_FATAL_DATA;
             break;
     }
 }
@@ -1592,22 +1552,20 @@ void pldm_get_temp_sensor_threshold(pldm_temp_sensor_threshold_data_t *temp_data
 void pldm_get_link_spd_cap(pldm_speed_sensor_cap_t *speed_data, u8 port)
 {
     if (!speed_data || port >= MAX_LAN_NUM) return;
-    speed_data->max_readable = CM_MODULE_GET_SIGNAL_RATE_DATA(port);
+    speed_data->max_readable = CM_MODULE_GET_SIGNAL_RATE_DATA(port) * 1000;
     speed_data->min_readable = 0;
-}
-
-/* MBd */
-static void pldm_signal_rate_data_update(u8 port)
-{
-    link_speed_sensors[port].present_reading = CM_MODULE_GET_SIGNAL_RATE_DATA(port);
 }
 
 /* in period monitor task in the future */
 void pldm_module_info_update(u8 port)
 {
     if (port >= MAX_LAN_NUM) return;
-    pldm_temperature_date_update(port);
-    pldm_power_data_update(port);
     pldm_identifier_update(port);
-    pldm_signal_rate_data_update(port);
+    /* 摄氏度, 保留整数 (0 ~ 127) */
+    u16 raw_val = CM_MODULE_GET_TEMPERATURE_DATE(port);
+    temp_sensors[PLUG_TEMP_SENSOR][port].present_reading = raw_val & CBIT(15) ? 0 : raw_val >> 8;
+    /* 0.1微瓦 */
+    plug_power_sensors[port].present_reading = CM_MODULE_GET_POWER_DATA(port);
+    /* MBd */
+    link_speed_sensors[port].present_reading = CM_MODULE_GET_SIGNAL_RATE_DATA(port) * 1000;
 }

@@ -32,7 +32,7 @@ typedef struct {
     u8 event_state;
     u8 previous_event_state;
     u8 sensor_datasize;
-    u8 present_reading;
+    u8 present_reading[0];
 } pldm_field_per_numeric_sensor_state_format_t;
 
 typedef struct {

@@ -195,7 +195,9 @@ static void pldm_monitor_poll_for_platform_event_msg(protocol_msg_t *pkt, int *p
             rsp_dat->transfer_flag = PLDM_TRANSFER_FLAG_END;
         }
         rsp_dat->next_data_transfer_handle = 0x00000000;
-        *(u32 *)&(rsp_dat->event_data[rsp_dat->event_datasize]) = crc32_pldm(0xFFFFFFFFUL, gs_entity_event_data, gs_pldm_event_data.event_data_size);
+
+        u32 crc = crc32_pldm(0xFFFFFFFFUL, gs_entity_event_data, gs_pldm_event_data.event_data_size);
+        cm_memcpy(&(rsp_dat->event_data[rsp_dat->event_datasize]), &crc, sizeof(crc));
         *pkt_len += sizeof(u32);
     } else {
         if (req_dat->transfer_op_flag == PLDM_TRANSFER_OP_FLAG_GET_FIRST_PART) {
@@ -319,7 +321,7 @@ static u8 is_link_simple_sensor(u16 sensor_id)
 
 static void pldm_monitor_set_numeric_sensor_enable(protocol_msg_t *pkt, int *pkt_len)
 {
-    pldm_set_numeric_sensor_enable_rsp_dat_t *req_dat = (pldm_set_numeric_sensor_enable_rsp_dat_t *)(pkt->req_buf);
+    pldm_set_numeric_sensor_enable_req_dat_t *req_dat = (pldm_set_numeric_sensor_enable_req_dat_t *)(pkt->req_buf);
     pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->rsp_buf - sizeof(pldm_response_t));
 
     u16 sensor_id = req_dat->sensor_id;
@@ -368,7 +370,8 @@ static void pldm_monitor_set_numeric_sensor_enable(protocol_msg_t *pkt, int *pkt
         if (sensor_data->op_state != req_dat->sensor_op_state) {
             sensor_data->previous_op_state = sensor_data->op_state;
             sensor_data->op_state = req_dat->sensor_op_state;
-            pldm_sensor_event_generate(g_pldm_monitor_info.pldm_event_rbuf, sensor_data->sensor_event_class, sensor_data->event_msg_en, (void *)sensor_data);
+            if (sensor_data->sensor_event_class == PLDM_SENSOR_OP_STATE)
+                pldm_sensor_event_generate(g_pldm_monitor_info.pldm_event_rbuf, sensor_data->sensor_event_class, sensor_data->event_msg_en, (void *)sensor_data);
         }
     } else {
         LOG("Invalid sensor id : %d", sensor_id);
@@ -423,9 +426,10 @@ static void pldm_monitor_get_sensor_reading(protocol_msg_t *pkt, int *pkt_len)
         rsp_dat->present_state = sensor_data->present_state;
         rsp_dat->previous_state = sensor_data->previous_state;
         rsp_dat->event_state = sensor_data->present_state;
-        rsp_dat->present_reading = sensor_data->present_reading;
+        u8 len = sensor_data->sensor_data_size == PLDM_DATASIZE_UINT8 ? 1 : 4;
+        cm_memcpy(rsp_dat->present_reading, &(sensor_data->present_reading) , len);
 
-        *pkt_len += sizeof(pldm_get_sensor_reading_rsp_dat_t);
+        *pkt_len += sizeof(pldm_get_sensor_reading_rsp_dat_t) + len;
     } else {
         LOG("Invalid sensor id : %d", sensor_id);
         rsp_hdr->cpl_code = PLDM_INVALID_SENSOR_ID;
@@ -663,7 +667,6 @@ static void pldm_monitor_set_state_sensor_en(protocol_msg_t *pkt, int *pkt_len)
             if (sensor_data[i].op_state != req_dat->opfield[i].sensor_op_state) {
                 sensor_data[i].previous_op_state = sensor_data[i].op_state;
                 sensor_data[i].op_state = req_dat->opfield[i].sensor_op_state;
-                pldm_sensor_event_generate(g_pldm_monitor_info.pldm_event_rbuf, sensor_data[i].sensor_event_class, sensor_data[i].event_msg_en, (void *)&sensor_data[i]);
             }
         }
     } else {
@@ -893,10 +896,11 @@ void pldm_monitor_update_repo_signature(pldm_pdr_t *repo)
 
 static void pldm_monitor_base_info_init(pldm_monitor_base_info_t *pldm_monitor_base_info)
 {
-    pldm_monitor_base_info->tid = 0;
+    pldm_monitor_base_info->tid = 0;  // 0x00 – Unassigned TID
     pldm_monitor_base_info->phy_addr.val = 0;
     pldm_monitor_base_info->repo_state = PLDM_REPO_AVAILABLE;
-    pldm_monitor_base_info->event_receiver_eid = 0;
+    /* Endpoint EID - this is the MCTP Broadcast ID, which is not supported. Therefore it is an invalid value. */
+    pldm_monitor_base_info->event_receiver_eid = 0xFF;
     pldm_monitor_base_info->terminus_mode = PLDM_DISABLE;
     pldm_monitor_base_info->terminus_max_buffersize = 24;     /* default size. */
     pldm_monitor_base_info->pldm_event_rbuf = pldm_event_rbuf_init();
@@ -990,7 +994,9 @@ void pldm_monitor_init(void)
     CM_FLASH_READ(0, (void *)&pldm_data_hdr, (sizeof(pldm_data_hdr_t) / sizeof(u32)));
     pldm_monitor_pdr_init(&pldm_data_hdr, &(g_pldm_monitor_info.pldm_repo), 0);
 
-    // g_pldm_monitor_info.pldm_repo.update_time =
+    pldm_thermal_sensor_pdr_update(PLDM_BASE_NIC_TEMP_SENSOR_ID, NIC_TEMP_SENSOR, 0);
+    pldm_thermal_sensor_pdr_update(PLDM_BASE_NC_TEMP_SENSOR_ID, NC_TEMP_SENSOR, 0);
+
     pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));
     for (u8 i = 0; i < MAX_LAN_NUM; i++) {
         pldm_link_handle(i, 1);
@@ -1026,20 +1032,20 @@ void pldm_monitor_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
 
 void pldm_temp_monitor_handle(void)
 {
-    for (u8 i = 0; i < (PLDM_NIC_TEMP_SENSOR_NUM + PLDM_NC_TEMP_SENSOR_NUM + PLDM_USED_PLUG_TEMP_SENSOR_NUM); i++) {
+    u8 num = PLDM_NIC_TEMP_SENSOR_NUM + PLDM_NC_TEMP_SENSOR_NUM + PLDM_USED_PLUG_TEMP_SENSOR_NUM;
+    for (u8 i = 0; i < num; i++) {
         if (temp_sensor_monitor[i].pdr_addr != NULL) {
             pldm_numeric_sensor_pdr_t *temp_pdr = (pldm_numeric_sensor_pdr_t *)(temp_sensor_monitor[i].pdr_addr);
             pldm_data_struct_t *sensor_data = NULL;
 
             u8 present_state = UNKNOWN;
             u16 sensor_id = temp_sensor_monitor[i].sensor_id;
-            int is_temp = is_temp_sensor(sensor_id);
+            u8 sensor_type = (i < 2) ? i : 2;
             u8 cnt = MAX_LAN_NUM;
-            if (is_temp == -1) continue;
 
             for (u8 j = 0; j < cnt; j++) {
-                if (sensor_id == temp_sensors[is_temp][j].sensor_id) {
-                    sensor_data = &temp_sensors[is_temp][j];
+                if (sensor_id == temp_sensors[sensor_type][j].sensor_id) {
+                    sensor_data = &temp_sensors[sensor_type][j];
                     cnt = 0;
                     break;
                 }
@@ -1049,9 +1055,7 @@ void pldm_temp_monitor_handle(void)
                 LOG("temp sensor not find. sensor id : %d", sensor_id);
                 continue;
             }
-            u16 present_reading = sensor_data->present_reading;
-            if (sensor_data->present_reading & CBIT(15))    /* -127 ~ 127 */
-                present_reading = 0;
+            u32 present_reading = sensor_data->present_reading;
 
             if (present_reading < temp_pdr->thermal_pdr.warning_high) {
                 present_state = NORMAL;

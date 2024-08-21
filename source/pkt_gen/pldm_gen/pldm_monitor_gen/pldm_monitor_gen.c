@@ -69,7 +69,7 @@ static void pldm_monitor_gen_cmd_0d(u8 *buf)
 
 static void pldm_monitor_gen_cmd_10(u8 *buf)
 {
-    pldm_set_numeric_sensor_enable_rsp_dat_t *req_dat = (pldm_set_numeric_sensor_enable_rsp_dat_t *)buf;
+    pldm_set_numeric_sensor_enable_req_dat_t *req_dat = (pldm_set_numeric_sensor_enable_req_dat_t *)buf;
     req_dat->sensor_id = PLDM_BASE_NIC_TEMP_SENSOR_ID;
     req_dat->sensor_op_state = PLDM_OP_ENABLE;
     req_dat->sensor_event_msg_en = PLDM_EVENT_EN;

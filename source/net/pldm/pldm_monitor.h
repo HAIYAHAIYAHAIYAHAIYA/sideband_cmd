@@ -349,7 +349,7 @@ typedef struct {
     u16 sensor_id;
     u8  sensor_op_state;
     u8  sensor_event_msg_en;
-} pldm_set_numeric_sensor_enable_rsp_dat_t;
+} pldm_set_numeric_sensor_enable_req_dat_t;
 
 typedef struct {
     u16 sensor_id;
@@ -363,7 +363,7 @@ typedef struct {
     u8 present_state;
     u8 previous_state;
     u8 event_state;
-    u8 present_reading;
+    u8 present_reading[0];
 } pldm_get_sensor_reading_rsp_dat_t;
 
 typedef struct {

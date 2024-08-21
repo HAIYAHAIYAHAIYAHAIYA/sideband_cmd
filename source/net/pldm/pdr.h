@@ -251,7 +251,7 @@ typedef union {
         u32 sign          : 1;          /* [31] – S (sign) bit (1 = negative, 0 = positive) */
     };
     u32 val;
-} real32_t;
+} real32_t; /* float_to_u32, https://blog.csdn.net/qq_35904259/article/details/128330739 */
 
 typedef struct {
     u8 hysteresis;
@@ -447,7 +447,7 @@ typedef struct {
     u8 present_state;
     u8 previous_state;
     u8 sensor_data_size;
-    u16 present_reading;
+    u32 present_reading;
 } pldm_temp_sensor_data_struct_t, pldm_link_speed_data_struct_t, pldm_plug_power_data_struct_t, pldm_data_struct_t;
 
 typedef struct {
@@ -510,5 +510,7 @@ void pldm_link_handle(u8 port, u8 link_state);
 
 void terminus_locator_pdr_chg(void);
 void pldm_modify_state_datastruct(u8 present_state, pldm_state_data_struct_t *datastruct);
+
+void pldm_thermal_sensor_pdr_update(u16 sensor_id, u8 sensor_type, u8 port);
 
 #endif /* __PDR_H__ */
