@@ -145,6 +145,7 @@ static void pldm_monitor_gen_recv_cmd_51(u8 *buf)
             pdr_cnt = 0;
         }
     } else {
+        gs_pldm_monitor_gen_state.event_id = PLDM_MONITOR_GEN_UNKNOW;
         LOG("pldm_monitor_gen_recv_cmd_51 : %#x", rsp_hdr->cpl_code);
     }
 }
