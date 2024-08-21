@@ -15,6 +15,9 @@
 
 #define PLDM_PCI_ID_BASE                            (0x10000)               /* to be determind, read by nvm or reg */
 
+extern u8 is_in_upgrade_mode;
+#define CM_IS_AT_UPGRADE_MODE()                     is_in_upgrade_mode
+
 #define PLDM_PCI_VENDOR_ID_REG                      (PLDM_PCI_ID_BASE + 0x0)
 #define PLDM_PCI_DEV_ID_REG                         (PLDM_PCI_ID_BASE + 0x2)
 #define PLDM_PCI_SUBSYS_VENDOR_ID_REG               (PLDM_PCI_ID_BASE + 0x2c)
@@ -497,6 +500,8 @@ typedef struct {
 typedef struct {
     u64 enter_upgrade_time;
     u64 req_time;
+    u8 req_cmd;
+    u8 need_rsp;
 } pldm_fwup_time_def_t;
 
 #pragma pack()

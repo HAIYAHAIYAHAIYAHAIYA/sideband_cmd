@@ -22,12 +22,16 @@ static u32 gs_requestfwdata_once_size = 0;
 static u8 gs_progress_flag = 0;                           /* 0: in progress; 1: finish */
 static u8 gs_timeout_occur_flag = 0;                      /* 0: timeout cause update_cancel */
 
-static pldm_fwup_time_def_t gs_cal_times;
+u8 is_in_upgrade_mode = 0;
+
+pldm_fwup_time_def_t g_cal_times;
 
 FILE *pd = NULL;
 
 extern u8 g_pldm_need_rsp;
 extern pldm_controller_composite_state_sensor_data_struct_t controller_composite_state_sensors[5];
+
+void pldm_fwup_timeout_process(u8 rsp_cmd);
 
 extern void pldm_unsupport_cmd(protocol_msg_t *pkt, int *pkt_len);
 extern u32 crc32_pldm(u32 init_crc, u8 *data, u32 len);
@@ -83,6 +87,8 @@ static void pldm_fwup_firmware_process_quit(void)
     gs_requestfwdata_once_size = 0;
     gs_event_id = UNKNOWN;
     g_pldm_fwup_info.update_mode = NON_UPDATE_MODE;
+
+    is_in_upgrade_mode = 0;
 }
 
 static void pldm_fwup_component_process_quit(void)
@@ -220,7 +226,11 @@ static void pldm_fwup_requestupdate(protocol_msg_t *pkt, int *pkt_len)
 
     g_pldm_fwup_info.hw_id = pkt->mctp_hw_id;
     g_pldm_fwup_info.ua_eid = req_mctp_hdr->src_eid;
-    gs_cal_times.enter_upgrade_time = CM_GET_CUR_TIMER_MS();
+
+    is_in_upgrade_mode = 1;
+
+    g_cal_times.enter_upgrade_time = CM_GET_CUR_TIMER_MS();
+    pldm_modify_state_datastruct(VER_CHG_DETECTED, &controller_composite_state_sensors[4]);
 }
 
 static void pldm_fwup_getpackagedata_send(void)
@@ -431,6 +441,8 @@ static void pldm_fwup_applycpl_send(void)
     req_dat.apply_result = 0x01;
 
     req_dat.comp_actv_meth_modification = PLDM_IMG_ACTIVE_METHOD;
+    /* update new img info actv meth. */
+    g_pldm_fwup_info.fw_new_img_info.comp_actv_meth = PLDM_IMG_ACTIVE_METHOD;
     pldm_msg_send((u8 *)&req_dat, sizeof(pldm_fwup_apply_cpl_req_dat_t), MCTP_PLDM_UPDATE, 0x18, g_pldm_fwup_info.hw_id, g_pldm_fwup_info.ua_eid);
 }
 
@@ -539,6 +551,7 @@ static void pldm_fwup_activatefw(protocol_msg_t *pkt, int *pkt_len)
     g_pldm_fwup_info.active_img_state = active_img_state;
 
     *pkt_len += sizeof(pldm_fwup_actv_fw_rsp_dat_t);
+    pldm_modify_state_datastruct(CONFIG_CHG, &controller_composite_state_sensors[2]);
 L_ERR:
     return;
 }
@@ -705,7 +718,21 @@ void pldm_fwup_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
         LOG("cpl_code : %#x, cur_state : %d", rsp_hdr->cpl_code, g_pldm_fwup_info.cur_state);
         return;
     }
-    gs_cal_times.req_time = CM_GET_CUR_TIMER_MS();
+
+    if (g_cal_times.need_rsp) {
+        /* cmd 0x1, 0x2, 0x1b is inventory cmd, BMC can send to nic in any time. */
+        u8 state = (cmd_code != 0x1 && cmd_code != 0x2 && cmd_code != 0x1b);
+        u8 cancel_state = (cmd_code != 0x1d);
+        cancel_state &= !(g_pldm_fwup_info.cur_state >= PLDM_UD_DOWNLOAD && g_pldm_fwup_info.cur_state <= PLDM_UD_APPLY && cmd_code == 0x1c);
+        if (cmd_proc != pldm_unsupport_cmd) {
+            if (state) {
+                if (cancel_state)
+                    pldm_fwup_timeout_process(cmd_code);
+                g_cal_times.need_rsp = 0;
+            }
+        }
+    }
+
     cmd_proc(pkt, pkt_len);
 }
 
@@ -734,7 +761,7 @@ void pldm_fwup_init(void)
     cm_memset(&g_pldm_fwup_info, 0, sizeof(pldm_fwup_base_info_t));
     cm_memset(&gs_fw_data_buf, 0, 6);
     cm_memset(&gs_pkg_data_buf, 0, 6);
-    cm_memset(&gs_cal_times, 0, sizeof(pldm_fwup_time_def_t));
+    cm_memset(&g_cal_times, 0, sizeof(pldm_fwup_time_def_t));
     // g_pldm_fwup_info.cur_state = PLDM_UD_IDLE;
     // g_pldm_fwup_info.prev_state = PLDM_UD_IDLE;
     // g_pldm_fwup_info.update_mode = FALSE;
@@ -750,7 +777,7 @@ void pldm_fwup_init(void)
 #endif
 }
 
-static void pldm_fwup_timeout_process(void)
+void pldm_fwup_timeout_process(u8 rsp_cmd)
 {
     if (!CM_IS_AT_UPGRADE_MODE() || g_pldm_fwup_info.cur_state == PLDM_UD_IDLE) return;
     /* ms */
@@ -760,32 +787,20 @@ static void pldm_fwup_timeout_process(void)
     u64 upgrade_timeout = 15 * 60 * 1000;   /* upgrade must in 15 min.(E810) */
     u8 is_timeout = 0;
 
-    if ((cur_time - gs_cal_times.req_time > pt2_timeout) && (gs_event_id <= PLDM_UD_APPLY_PASS)) {
+    LOG("diff time : %d", cur_time - g_cal_times.req_time);
+
+    if (((cur_time - g_cal_times.req_time > pt2_timeout) && (gs_event_id <= PLDM_UD_APPLY_PASS)) || (g_cal_times.req_cmd != rsp_cmd)) {
         /* to be determind. */
         // is_timeout = 1;
-        LOG("pldm fwup pt2_timeout : %lld, cur_state : %d", cur_time - gs_cal_times.req_time, g_pldm_fwup_info.cur_state);
+        LOG("pldm fwup pt2_timeout : %lld, cur_state : %d, 0x%x, 0x%x", cur_time - g_cal_times.req_time, g_pldm_fwup_info.cur_state, g_cal_times.req_cmd, rsp_cmd);
     }
-    if (cur_time - gs_cal_times.enter_upgrade_time > upgrade_timeout) {
+    if (cur_time - g_cal_times.enter_upgrade_time > upgrade_timeout) {
         is_timeout = 1;
-        LOG("pldm fwup upgrade_timeout : %lld", cur_time - gs_cal_times.enter_upgrade_time);
+        LOG("pldm fwup upgrade_timeout : %lld", cur_time - g_cal_times.enter_upgrade_time);
     }
     if (is_timeout) {
         gs_timeout_occur_flag = 1;
         pldm_fwup_sta_chg(PLDM_UD_IDLE);
         pldm_fwup_firmware_process_quit();
     }
-}
-
-static void pldm_fwup_upgrade_is_detected_process(void)
-{
-    if (!CM_IS_AT_UPGRADE_MODE()) return;
-    pldm_modify_state_datastruct(CONFIG_CHG, &controller_composite_state_sensors[2]);
-    pldm_modify_state_datastruct(VER_CHG_DETECTED, &controller_composite_state_sensors[4]);
-}
-
-/* periodic monitoring in the task */
-void pldm_fwup_upgrade_handle(void)
-{
-    pldm_fwup_upgrade_is_detected_process();
-    pldm_fwup_timeout_process();
 }

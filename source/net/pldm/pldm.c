@@ -10,6 +10,7 @@
 #include "pkt_gen.h"
 
 extern u8 g_pldm_need_rsp;
+extern pldm_fwup_time_def_t g_cal_times;
 
 u8 g_instance_id = 0;
 
@@ -60,6 +61,12 @@ void pldm_msg_send(u8 *msg, u16 msg_len, u8 pldm_type, u8 cmd_code, int hw_id, u
     // cm_memcpy(paylaod, msg, msg_len);
 
     // mctp_as_requester_send_to(&pkt, msg_len + sizeof(pldm_request_t));
+
+    if (pldm_type == MCTP_PLDM_UPDATE) {
+        g_cal_times.req_cmd = cmd_code;
+        g_cal_times.req_time = CM_GET_CUR_TIMER_MS();
+        g_cal_times.need_rsp = 1;
+    }
 
     pldm_gen_recv(msg, pldm_type, cmd_code);
 }
