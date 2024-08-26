@@ -156,8 +156,8 @@ void pldm_pdr_init(pldm_pdr_t *repo)
     repo->repo_signature = 0;
 
     repo->update_time.utc_offset = 0;
-    repo->update_time.utc_resolution = UTC_RSLV_UTCUNSPECIFIED;
-    repo->update_time.time_resolution = T_RSLV_MICROSECOND;
+    repo->update_time.utc_resolution = UTC_RSLV_MINUTE;
+    repo->update_time.time_resolution = T_RSLV_MILLISECOND;
     repo->update_time.year = 0;
     repo->update_time.mon = 0;
     repo->update_time.day = 0;
@@ -1442,6 +1442,7 @@ void terminus_locator_pdr_chg(void)
         pldm_pdr_chg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_REPO_CHG_FORMAT_ID_PDR_HANDLE, PLDM_REPO_CHG_RECORDS_MODIFIED, PLDM_TERMINUS_LOCATOR_PDR_HANDLE);
         g_pldm_monitor_info.repo_state = PLDM_REPO_AVAILABLE;
         pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));
+        pldm_monitor_update_repo_time(&(g_pldm_monitor_info.pldm_repo.update_time));
     }
 }
 
@@ -1475,13 +1476,14 @@ void pldm_link_handle(u8 port, u8 link_state)
             pldm_link_func[link_state][i](port);
         }
     }
-    // pldm_redfish_msg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID + port, link_state);
+    pldm_redfish_msg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_BASE_NETWORK_DEV_FUNC_RESOURCE_ID + port, link_state);
     /* 12.8.2.3 PDR Dynamic Changes Flow */
     pldm_modify_state_datastruct(CONFIG_CHG, &nic_composite_state_sensors[2]);
 
     g_pldm_monitor_info.repo_state = PLDM_REPO_AVAILABLE;
-    // g_pldm_monitor_info.pldm_repo.update_time =
+
     pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));
+    pldm_monitor_update_repo_time(&(g_pldm_monitor_info.pldm_repo.update_time));
 }
 
 /* 初始化更新pdr */

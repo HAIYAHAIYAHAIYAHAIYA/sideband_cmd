@@ -428,7 +428,7 @@ typedef struct {
 typedef struct {
     u8 repo_state;
     pldm_timestamp104_t update_time;
-    u32 oem_update_time;                     /* Currently no OEM PDRs are defined, so return 0, timestamp104 ? */
+    pldm_timestamp104_t oem_update_time;
     u32 record_count;
     u32 repo_size;
     u32 largest_record_size;
@@ -509,5 +509,7 @@ u32 sensor_id_convert_to_record_handle(u16 sensor_id);
 
 void pldm_event_send_handle(void);
 void pldm_temp_monitor_handle(void);
+
+void pldm_monitor_update_repo_time(pldm_timestamp104_t *time);
 
 #endif /* __PLDM_MONITOR_H__ */

@@ -571,6 +571,9 @@ static void pldm_monitor_set_sensor_thresholds(protocol_msg_t *pkt, int *pkt_len
 
     pldm_pdr_chg_event_generate(g_pldm_monitor_info.pldm_event_rbuf, PLDM_REPO_CHG_FORMAT_ID_PDR_HANDLE, PLDM_REPO_CHG_RECORDS_MODIFIED, record_handle);
 
+    pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));
+    pldm_monitor_update_repo_time(&(g_pldm_monitor_info.pldm_repo.update_time));
+
 L_ERR:
     return;
 }
@@ -746,7 +749,7 @@ static void pldm_monitor_get_pdr_repo_info(protocol_msg_t *pkt, int *pkt_len)
 
     rsp_dat->repo_state = g_pldm_monitor_info.repo_state;
     rsp_dat->update_time = g_pldm_monitor_info.pldm_repo.update_time;                                  /* Returns the time in internal clock of the firmware of the last PDR update */
-    rsp_dat->oem_update_time = 0x00;                                                                  /* Currently no OEM PDRs are defined, so return 0 */
+    // rsp_dat->oem_update_time;                                                                       /* Currently no OEM PDRs are defined, so return 0 */
     rsp_dat->record_count = g_pldm_monitor_info.pldm_repo.record_count;
     /* Return the size of the entire PDR data structure rounded up to 1K */
     rsp_dat->repo_size = (g_pldm_monitor_info.pldm_repo.size < 0x400) ? 0x400 : ((g_pldm_monitor_info.pldm_repo.size + 512) & (0xFFFFFC00));
@@ -976,6 +979,38 @@ static void pldm_monitor_pdr_init(pldm_data_hdr_t *pldm_data_hdr, pldm_pdr_t *re
     }
 }
 
+void pldm_monitor_update_repo_time(pldm_timestamp104_t *time)
+{
+    if (!time) return;
+    u64 total_ms = CM_GET_CUR_TIMER_MS();
+    u64 ms = total_ms % 1000;
+
+    cm_memcpy(time->microsecond, &ms, sizeof(time->microsecond));
+    total_ms /= 1000;
+    time->sec = total_ms % 60;
+    total_ms /= 60;
+    time->min = total_ms % 60;
+    total_ms /= 60;
+    time->hour = total_ms % 24;
+    total_ms /= 24;
+    time->day = total_ms % 30;
+    total_ms /= 30;
+    time->mon = total_ms % 12;
+    total_ms /= 12;
+    time->year = total_ms;
+
+    u32 ms_p = 0;
+    cm_memcpy(&ms_p, time->microsecond, 3);
+
+    LOG("year : %d", time->year);
+    LOG("mon : %d", time->mon);
+    LOG("day : %d", time->day);
+    LOG("hour : %d", time->hour);
+    LOG("min : %d", time->min);
+    LOG("sec : %d", time->sec);
+    LOG("microsecond : %d", ms_p);
+}
+
 void pldm_monitor_init(void)
 {
     pldm_monitor_base_info_init(&g_pldm_monitor_info);
@@ -998,6 +1033,7 @@ void pldm_monitor_init(void)
     pldm_thermal_sensor_pdr_update(PLDM_BASE_NC_TEMP_SENSOR_ID, NC_TEMP_SENSOR, 0);
 
     pldm_monitor_update_repo_signature(&(g_pldm_monitor_info.pldm_repo));
+    pldm_monitor_update_repo_time(&(g_pldm_monitor_info.pldm_repo.update_time));
     for (u8 i = 0; i < MAX_LAN_NUM; i++) {
         pldm_link_handle(i, 1);
     }
