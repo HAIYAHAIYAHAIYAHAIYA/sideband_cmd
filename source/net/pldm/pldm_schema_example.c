@@ -192,7 +192,7 @@ static pldm_cjson_t *pldm_cjson_create_networkadapter_v1_5_0_schema_update(u32 r
                 {0, BEJ_STR, 0, "SKU", "AMBER"},
                 {0, BEJ_STR, 0, "SerialNumber", "Read from GLPCI_SERH/L.?"},
                 {0, BEJ_SET, 1, "Status", ""},
-                    {0, BEJ_ENUM, 5, "State", (char [3]){0x01, 0x01, 0x00}},
+                    {0, BEJ_ENUM, 0, "State", (char [3]){0x01, 0x01, 0x00}},
                         // {0, BEJ_STR, 0, "StandbyOffline", ""},
                         // {0, BEJ_STR, 0, "Starting", ""},
                         // {0, BEJ_STR, 0, "Updating", ""},

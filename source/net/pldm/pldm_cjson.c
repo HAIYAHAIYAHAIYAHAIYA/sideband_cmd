@@ -20,7 +20,7 @@ void pldm_cjson_pool_reinit(void)
     gs_pldm_cjson_wt = 0;
 }
 
-static void *pldm_cjson_malloc(u16 size)
+void *pldm_cjson_malloc(u16 size)
 {
     size = ALIGN(size, 1);
     if (gs_pldm_cjson_wt + size >= PLDM_CJSON_POLL_SIZE) {
@@ -88,6 +88,7 @@ static pldm_cjson_t *pldm_cjson_add_sflv_attr(pldm_cjson_t *item, pldm_bej_sflv_
 {
     if (!item || !sflv || !val || !name) return NULL;
     item->sflv = *sflv;
+    item->sflv.len = sflv->len + val_len;
     item->sflv.val = (char *)pldm_cjson_malloc(val_len + 1);
     cm_memcpy(item->sflv.val, val, val_len);
     item->name = (char *)pldm_cjson_malloc(cm_strlen(name) + 1);
@@ -173,16 +174,16 @@ u16 pldm_cjson_cal_len_to_root(pldm_cjson_t *root, u8 op_type)
     pldm_cjson_t *tmp = root;
     while (tmp) {
         u8 fmt = tmp->sflv.fmt >> 4;
-        tmp->sflv.len = 0;
         if (fmt == BEJ_SET || fmt == BEJ_ARRAY)
         {
+            tmp->sflv.len = 0;
             tmp->sflv.len += 2;
         }
         tmp->sflv.len += pldm_cjson_cal_len_to_root(tmp->child, op_type);
         if (op_type != HEAD) {
             if (!(tmp->child) && fmt != BEJ_SET && fmt != BEJ_ARRAY) {
                 // if (tmp->name) LOG("seq : %#x, fmt : 0x%02x, len : %d, name : %s : ", tmp->sflv.seq, tmp->sflv.fmt, tmp->sflv.len, tmp->name);
-                tmp->sflv.len = cm_strlen(tmp->sflv.val);
+                if (fmt == BEJ_STR) tmp->sflv.len = cm_strlen(tmp->sflv.val);
                 if (!(tmp->sflv.seq & 1) && fmt == BEJ_STR) tmp->sflv.len += 1;     /* major schema */
             }
         }
@@ -202,8 +203,9 @@ void pldm_cjson_printf_root(pldm_cjson_t *root)
         pldm_cjson_printf_root(tmp->child);
         if (!tmp->child && tmp->sflv.val) {
             u8 fmt = tmp->sflv.fmt >> 4;
-            for (u8 i = 0; i < tmp->sflv.len; i++) {
+            for (u16 i = 0; i < tmp->sflv.len; i++) {
                 switch (fmt) {
+                    case BEJ_REAL:
                     case BEJ_INT:
                         printf("%d ", tmp->sflv.val[i]);
                         break;
@@ -292,12 +294,17 @@ static void pldm_cjson_update_op(pldm_cjson_t *start_node, pldm_cjson_t *update_
         pldm_cjson_t *tmp = ori_node;
         for (; tmp; tmp = tmp->next) {
             if (cm_strcmp(tmp->name, new_node->name) == 0) {
-                u8 ori_val_len = cm_strlen(tmp->sflv.val);
-                u8 new_val_len = cm_strlen(new_node->sflv.val);
-                if (ori_val_len >= new_val_len)
-                    tmp->sflv.val[new_val_len] = '\0';
-                else
+                u8 fmt = new_node->sflv.fmt >> 4;
+                if (fmt == BEJ_SET || fmt == BEJ_ARRAY) break;
+                u16 ori_val_len = tmp->sflv.len;
+                u16 new_val_len = new_node->sflv.len;
+                if ((tmp->sflv.fmt >> 4) == BEJ_STR) {
+                    ori_val_len -= 1;
+                    new_val_len -= 1;
+                }
+                if (ori_val_len < new_val_len)
                     tmp->sflv.val = pldm_cjson_malloc(new_val_len + 1);
+                tmp->sflv.len = new_val_len;
                 cm_memcpy(tmp->sflv.val, new_node->sflv.val, new_val_len);
                 break;
             }
@@ -448,7 +455,7 @@ extern u32 pldm_redfish_resource_id_to_base(u32 resource_id);
 
 schema_create g_schemas[11];
 
-static u8 pldm_cjson_first_get_etag(u8 resource_identify, u32 resource_id, u8 offset, u8 *etag_val)
+u8 pldm_cjson_first_get_etag(u8 resource_identify, u32 resource_id, u8 offset, u8 *etag_val)
 {
     if (!etag_val) return false;
     pldm_cjson_t *root = NULL;
@@ -488,11 +495,10 @@ u8 pldm_cjson_get_etag(u8 resource_identify, u32 resource_id, varstring *etag)
     if (resource_identify > 6)
             new_resource_identify += (resource_identify - 6) * (MAX_LAN_NUM - 1);
 
-    if (g_resource_bej[new_resource_identify + offset].is_etag) {
+    if (g_resource_bej[new_resource_identify + offset].is_etag)
         cm_memcpy(etag->val, g_resource_bej[new_resource_identify + offset].etag, 8);
-    } else {
-        ret = pldm_cjson_first_get_etag(resource_identify, resource_id, offset, etag->val);
-    }
+    // else
+    //     ret = pldm_cjson_first_get_etag(resource_identify, resource_id, offset, etag->val);
     etag->val[etag->len - 1] = '\0';
     return ret;
 }
@@ -568,6 +574,7 @@ static void pldm_cjson_fill_comm_field_in_schema(pldm_cjson_t *root, u8 is_colle
     char *val[6] = {str, type, "etagetag", uri, healthrollupdescription, healthrollup};
     u8 cnt = is_collection ? 4 : 6;
     for (u8 i = 0; i < cnt; i++) {
+        sflv.len = 0;
         if (i < 4) {
             sflv.seq = 1;
             sflv.fmt = BEJ_STR << 4;
@@ -689,6 +696,7 @@ pldm_cjson_schema_fmt_t *pldm_cjson_create_schema(pldm_cjson_t *obj, pldm_cjson_
     u8 cnt = 0;
     sflv.seq = buf[0].schema_type;
     sflv.fmt = buf[0].fmt << 4;
+    sflv.len = 0;
     // LOG("fmt : %d, cnt : %d\n", buf[0].fmt, buf[0].child_cnt);
     if (buf[0].fmt == BEJ_SET || buf[0].fmt == BEJ_ARRAY) {
         cnt = buf[0].child_cnt;

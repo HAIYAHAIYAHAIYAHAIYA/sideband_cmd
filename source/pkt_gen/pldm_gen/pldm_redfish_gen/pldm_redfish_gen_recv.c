@@ -195,7 +195,7 @@ static void pldm_redfish_gen_recv_cmd_30(u8 *buf)
 }
 
 static u32 dict_size = 0;
-static u8 op_result[8192];
+static u8 op_result[3 * 1024];
 extern u32 crc32_pldm(u32 init_crc, u8 *data, u32 len);
 static void pldm_redfish_gen_recv_cmd_31(u8 *buf)
 {

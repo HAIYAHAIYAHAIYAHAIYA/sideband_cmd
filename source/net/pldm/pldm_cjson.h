@@ -49,6 +49,7 @@ typedef pldm_cjson_t *(*schema_create)(u32 resource_id);
 
 void pldm_cjson_pool_init(void);
 void pldm_cjson_pool_reinit(void);
+void *pldm_cjson_malloc(u16 size);
 pldm_cjson_t *pldm_cjson_create_obj(void);
 void pldm_cjson_delete_node(pldm_cjson_t *node);
 

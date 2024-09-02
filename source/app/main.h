@@ -10,7 +10,7 @@
 #include "time.h"
 
 #define VDM_SPLIT_MAX_LEN               (48)
-#define MAX_LAN_NUM                     (2)
+#define MAX_LAN_NUM                     (4)
 #define UPGRADE_MODE                    CBIT(1)
 #define CM_LOG_FILTER                   (0)
 
