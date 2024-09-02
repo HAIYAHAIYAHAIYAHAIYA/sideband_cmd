@@ -50,7 +50,7 @@ u8 pldm_bej_bejreal_to_float(float *num, u8 *buf, u8 len)
     next = pldm_bej_bejreal_get_fract_and_zero(&fract, next, len);
     next = pldm_bej_bejreal_get_whole_and_exp(&exp, next, len);
 
-    LOG("whole : %d, fract_zero : %d, fract : %d, exp : %d", whole, fract_zero, fract, exp);
+    // LOG("whole : %d, fract_zero : %d, fract : %d, exp : %d", whole, fract_zero, fract, exp);
 
     return 1;
 }
@@ -86,7 +86,6 @@ u8 pldm_bej_float_to_bejreal(pldm_real num, u8 *buf)
     memset(str, '\0', sizeof(str));
     sprintf(str, "%.2f", num);
     u8 integer_num = 0;
-    u8 decimal_num = 0;
     u32 whole = 0;
     u32 fract = 0;
     u8 fract_len = 0;
@@ -97,7 +96,6 @@ u8 pldm_bej_float_to_bejreal(pldm_real num, u8 *buf)
     for (u8 i = 0; i < f_num_len; ++i) {
         if (str[i] == '.') {
             integer_num = i;
-            decimal_num = f_num_len - i - 1;
             break;
         }
     }
@@ -124,8 +122,8 @@ u8 pldm_bej_float_to_bejreal(pldm_real num, u8 *buf)
     whole = str[0] - '0';
     fract = atoi(&str[2]);
     exp = integer_num - 1;
-    LOG("str : %s, %d", str, integer_num);
-    LOG("whole : %d, fract_len : %d, fract : %d, exp : %d", whole, fract_len, fract, exp);
+    // LOG("str : %s, %d", str, integer_num);
+    // LOG("whole : %d, fract_len : %d, fract : %d, exp : %d", whole, fract_len, fract, exp);
 
     u8 idx = pldm_bej_u32_to_bejinteger(whole, buf, 1);
     idx += pldm_bej_u32_to_bejinteger(whole, &buf[idx], 0);
