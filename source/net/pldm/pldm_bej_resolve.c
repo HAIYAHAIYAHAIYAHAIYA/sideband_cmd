@@ -3,6 +3,139 @@
 
 static pldm_bej_key_t gs_key, gs_enum_key;
 
+u8 pldm_bej_nnint_to_u32(u32 *num, u8 *buf)
+{
+    if (!num || !buf) return 0;
+    for (u8 i = 0; i < buf[0]; ++i) {
+        *num |= (buf[i + 1] << (i * 8));
+    }
+    return 1;
+}
+
+u8 pldm_bej_bejinteger_to_u32(u32 *num, u8 *buf, u8 len)
+{
+    if (!num || !buf) return 0;
+    for (u8 i = 0; i < len; ++i) {
+        *num |= (buf[i] << (i * 8));
+    }
+    return 1;
+}
+
+u8 *pldm_bej_bejreal_get_whole_and_exp(u32 *whole, u8 *buf, u8 len)
+{
+    if (!whole || !buf) return NULL;
+    u8 nnint_len = buf[0];
+    pldm_bej_nnint_to_u32(whole, buf);
+    return &buf[nnint_len * 2 + 1];
+}
+
+u8 *pldm_bej_bejreal_get_fract_and_zero(u32 *fract, u8 *buf, u8 len)
+{
+    if (!fract || !buf) return NULL;
+    u8 nnint_len = buf[0];
+    pldm_bej_nnint_to_u32(fract, buf);
+    return &buf[nnint_len + 1];
+}
+
+u8 pldm_bej_bejreal_to_float(float *num, u8 *buf, u8 len)
+{
+    if (!num || !buf) return 0;
+    u32 whole = 0;
+    u32 fract_zero = 0;
+    u32 fract = 0;
+    u32 exp = 0;
+
+    u8 *next = pldm_bej_bejreal_get_whole_and_exp(&whole, buf, len);
+    next = pldm_bej_bejreal_get_fract_and_zero(&fract_zero, next, len);
+    next = pldm_bej_bejreal_get_fract_and_zero(&fract, next, len);
+    next = pldm_bej_bejreal_get_whole_and_exp(&exp, next, len);
+
+    LOG("whole : %d, fract_zero : %d, fract : %d, exp : %d", whole, fract_zero, fract, exp);
+
+    return 1;
+}
+
+u8 pldm_bej_u32_to_bejinteger(u32 num, u8 *buf, u8 is_nnint)
+{
+    if (!buf) return 0;
+    u32 ori_num = num;
+    u8 cnt = 0;
+    u8 *ptr = &buf[is_nnint];
+    for (u8 i = 0; i < 0x40; ++i) {
+        if (ori_num & 0xFF)
+            ptr[cnt] = ori_num & 0xFF;
+        else
+            break;
+        ori_num >>= 8;
+        cnt++;
+    }
+    if (is_nnint) {
+        buf[0] = cnt ? cnt : 1;
+    }
+    if (num == 0) {
+        ptr[0] = 0;
+        cnt++;
+    }
+    return cnt + is_nnint;
+}
+
+u8 pldm_bej_float_to_bejreal(pldm_real num, u8 *buf)
+{
+    if (!buf) return 0;
+    u8 str[64];
+    memset(str, '\0', sizeof(str));
+    sprintf(str, "%.2f", num);
+    u8 integer_num = 0;
+    u8 decimal_num = 0;
+    u32 whole = 0;
+    u32 fract = 0;
+    u8 fract_len = 0;
+    u8 exp = 0;
+    LOG("str : %s", str);
+    u16 f_num_len = strlen(str);
+
+    for (u8 i = 0; i < f_num_len; ++i) {
+        if (str[i] == '.') {
+            integer_num = i;
+            decimal_num = f_num_len - i - 1;
+            break;
+        }
+    }
+
+    for (u8 i = f_num_len - 1; i > integer_num; --i) {
+        if (str[i] == '0') {
+            str[i] = '\0';
+            f_num_len--;
+        } else
+            break;
+    }
+
+    for (u8 j = integer_num; j > 1; --j) {
+        str[j] = str[j - 1];
+    }
+    str[1] = '.';
+
+    for (u8 j = 2; j < f_num_len; ++j) {
+        if (str[j] == '0')
+            fract_len++;
+        else
+            break;
+    }
+    whole = str[0] - '0';
+    fract = atoi(&str[2]);
+    exp = integer_num - 1;
+    LOG("str : %s, %d", str, integer_num);
+    LOG("whole : %d, fract_len : %d, fract : %d, exp : %d", whole, fract_len, fract, exp);
+
+    u8 idx = pldm_bej_u32_to_bejinteger(whole, buf, 1);
+    idx += pldm_bej_u32_to_bejinteger(whole, &buf[idx], 0);
+    idx += pldm_bej_u32_to_bejinteger(fract_len, &buf[idx], 1);
+    idx += pldm_bej_u32_to_bejinteger(fract, &buf[idx], 1);
+    idx += pldm_bej_u32_to_bejinteger(exp, &buf[idx], 1);
+    idx += pldm_bej_u32_to_bejinteger(exp, &buf[idx], 0);
+    return idx;
+}
+
 static u16 pldm_bej_get_len(u8 *buf)
 {
     if (!buf) return 0;
@@ -158,7 +291,7 @@ static void pldm_bej_val_search(u8 *dictionary, pldm_bej_sflv_t *sflv, pldm_cjso
     pldm_bej_sflv_dat_t tmp;
     tmp.seq = sflv->seq;
     tmp.fmt = sflv->fmt;
-    tmp.len = sflv->len;
+    tmp.len = 0;
     switch (fmt) {
         // case BEJ_INT:
         //     pldm_cjson_add_item_to_obj(ptr, &tmp, gs_key.val, (char *)sflv->val, sflv->len);
