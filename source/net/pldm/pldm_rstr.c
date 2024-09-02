@@ -1,14 +1,15 @@
 #include "pldm_rstr.h"
 #include "pldm_bej_resolve.h"
 
-u8 pldm_rstr_create_val(void *val, u8 data_type, u8 len, pldm_rstr_val_t *body)
+void pldm_rstr_create_val(void *val, u8 data_type, u8 len, pldm_rstr_val_t *body)
 {
-    if (!val) return 0;
+    if (!val) return;
     body->data_type = data_type;
     switch (data_type) {
         case BEJ_INT:
         case BEJ_REAL:
         case BEJ_ENUM:
+        case BEJ_BOOLEAN:
             body->i_val = *((u32 *)val);
             break;
         case BEJ_STR:
@@ -17,16 +18,16 @@ u8 pldm_rstr_create_val(void *val, u8 data_type, u8 len, pldm_rstr_val_t *body)
                 cm_memcpy(body->string, val, len);
             break;
     }
-    return 1;
 }
 
 void pldm_rstr_fill_str(pldm_rstr_field_t *fields, pldm_cjson_t *node, u8 field_cnt, u8 *idx)
 {
     if (!fields || !node) return;
     u8 buf[32];
-    if (cm_strcmp(fields[*idx].name, node->name) == 0) {
+    u8 fmt = node->sflv.fmt >> 4;
+    if ((cm_strcmp(fields[*idx].name, node->name) == 0) && (fmt == fields[*idx].val.data_type)) {
         u8 len = 0;
-        switch (node->sflv.fmt >> 4) {
+        switch (fmt) {
             case BEJ_INT:
                 len = pldm_bej_u32_to_bejinteger(fields[*idx].val.i_val, buf, 0);
                 break;
@@ -249,9 +250,9 @@ u8 pldm_rstr_create_port_field(pldm_rstr_field_t *fields)
         BEJ_BOOLEAN,
         BEJ_BOOLEAN,
         BEJ_BOOLEAN,
-        BEJ_ENUM,
-        BEJ_ENUM,
-        BEJ_ENUM,
+        BEJ_REAL,
+        BEJ_REAL,
+        BEJ_REAL,
         BEJ_ENUM,
         BEJ_ENUM,
         BEJ_ENUM,
@@ -265,7 +266,10 @@ u8 pldm_rstr_create_port_field(pldm_rstr_field_t *fields)
     u8 cnt = sizeof(type);
     for (u8 i = 0; i < cnt; ++i) {
         fields[i].name = names[i];
-        pldm_rstr_create_val(&vals, type[i], sizeof(u32), &(fields[i].val));
+        if (type[i] != BEJ_STR)
+            pldm_rstr_create_val(&vals, type[i], sizeof(u32), &(fields[i].val));
+        else
+            pldm_rstr_create_val(&("hhhhhh"), type[i], strlen("hhhhhh"), &(fields[i].val));
     }
     return cnt;
 }
@@ -360,7 +364,7 @@ void pldm_rstr_process_redfish_resource(pldm_rstr_field_t *fields, pldm_cjson_t 
 void pldm_rstr_update_redfish_resource(pldm_cjson_t *root, u8 resource_identify)
 {
     if (!root) return;
-    pldm_rstr_field_t fields[17];
+    pldm_rstr_field_t fields[20];
     u8 field_cnt = 0;
     u8 identify = resource_identify + NETWORK_ADAPTER;
 
