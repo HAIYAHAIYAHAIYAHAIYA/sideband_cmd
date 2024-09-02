@@ -529,9 +529,10 @@ static void pldm_redfish_supply_custom_request_parameters(protocol_msg_t *pkt, i
 
     u8 etag_ptr[11] = {0};
     u8 *etag_string = &etag_ptr[sizeof(varstring)]; // the calculated ETag
-    u8 etag_len = etag_ptr[1];
+    u8 etag_len = 0;
 
     u8 ret = pldm_cjson_get_etag(resource_identify - 4, req_dat->op_identify.resource_id, (varstring *)etag_ptr);
+    etag_len = etag_ptr[1];
     if (ret == false) {
         rsp_hdr->cpl_code = PLDM_ERROR_NO_SUCH_RESOURCE;    // resource ID is not advertised by the device
         goto L_ERR;
