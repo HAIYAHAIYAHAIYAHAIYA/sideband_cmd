@@ -1,26 +1,36 @@
 #include "pldm_rstr.h"
 #include "pldm_bej_resolve.h"
 
-void pldm_rstr_create_val(void *val, u8 data_type, u8 len, pldm_rstr_val_t *body)
+static void pldm_rstr_fill_identify(char *name, u8 data_type, pldm_rstr_field_t *body)
 {
-    if (!val) return;
-    body->data_type = data_type;
-    switch (data_type) {
+    if (!body || !name) return;
+    body->val.data_type = data_type;
+    u8 name_len = cm_strlen(name);
+    body->name = pldm_cjson_malloc(name_len + 1);
+    if (body->name)
+        cm_memcpy(body->name, name, name_len);
+}
+
+static void pldm_rstr_fill_val(void *val, u8 len, pldm_rstr_field_t *body)
+{
+    if (!body || !val) return;
+        if (!val) return;
+    switch (body->val.data_type) {
         case BEJ_INT:
         case BEJ_REAL:
         case BEJ_ENUM:
         case BEJ_BOOLEAN:
-            body->i_val = *((u32 *)val);
+            body->val.i_val = *((u32 *)val);
             break;
         case BEJ_STR:
-            body->string = pldm_cjson_malloc(len + 1);
-            if (body->string)
-                cm_memcpy(body->string, val, len);
+            body->val.string = pldm_cjson_malloc(len + 1);
+            if (body->val.string)
+                cm_memcpy(body->val.string, val, len);
             break;
     }
 }
 
-void pldm_rstr_fill_str(pldm_rstr_field_t *fields, pldm_cjson_t *node, u8 field_cnt, u8 *idx)
+static void pldm_rstr_fill_str(pldm_rstr_field_t *fields, pldm_cjson_t *node, u8 field_cnt, u8 *idx)
 {
     if (!fields || !node) return;
     u8 buf[32];
@@ -33,7 +43,7 @@ void pldm_rstr_fill_str(pldm_rstr_field_t *fields, pldm_cjson_t *node, u8 field_
                 break;
             case BEJ_BOOLEAN:
                 if (fields[*idx].val.i_val) buf[0] = 't';
-                else  buf[0] = 'f';
+                else buf[0] = 'f';
                 len = 1;
                 break;
             case BEJ_STR:
@@ -60,7 +70,7 @@ void pldm_rstr_fill_str(pldm_rstr_field_t *fields, pldm_cjson_t *node, u8 field_
     }
 }
 
-u8 pldm_rstr_create_networkadapter_field(pldm_rstr_field_t *fields)
+static u8 pldm_rstr_create_networkadapter_field(pldm_rstr_field_t *fields)
 {
     if (!fields) return 0;
     char *names[] = {
@@ -102,16 +112,16 @@ u8 pldm_rstr_create_networkadapter_field(pldm_rstr_field_t *fields)
         BEJ_STR,
         BEJ_ENUM,
     };
-    u32 vals = 's';
+    u32 val = 's';
     u8 cnt = sizeof(type);
     for (u8 i = 0; i < cnt; ++i) {
-        fields[i].name = names[i];
-        pldm_rstr_create_val(&vals, type[i], sizeof(u32), &(fields[i].val));
+        pldm_rstr_fill_identify(names[i], type[i], &fields[i]);
+        pldm_rstr_fill_val(&val, sizeof(val), &fields[i]);
     }
     return cnt;
 }
 
-u8 pldm_rstr_create_pciedevice_field(pldm_rstr_field_t *fields)
+static u8 pldm_rstr_create_pciedevice_field(pldm_rstr_field_t *fields)
 {
     if (!fields) return 0;
     char *names[] = {
@@ -147,16 +157,16 @@ u8 pldm_rstr_create_pciedevice_field(pldm_rstr_field_t *fields)
         BEJ_STR,
         BEJ_ENUM,
     };
-    u32 vals = 's';
+    u32 val = 's';
     u8 cnt = sizeof(type);
     for (u8 i = 0; i < cnt; ++i) {
-        fields[i].name = names[i];
-        pldm_rstr_create_val(&vals, type[i], sizeof(u32), &(fields[i].val));
+        pldm_rstr_fill_identify(names[i], type[i], &fields[i]);
+        pldm_rstr_fill_val(&val, sizeof(val), &fields[i]);
     }
     return cnt;
 }
 
-u8 pldm_rstr_create_networkinterface_field(pldm_rstr_field_t *fields)
+static u8 pldm_rstr_create_networkinterface_field(pldm_rstr_field_t *fields)
 {
     if (!fields) return 0;
     char *names[] = {
@@ -168,16 +178,16 @@ u8 pldm_rstr_create_networkinterface_field(pldm_rstr_field_t *fields)
         BEJ_STR,
         BEJ_ENUM,
     };
-    u32 vals = 's';
+    u32 val = 's';
     u8 cnt = sizeof(type);
     for (u8 i = 0; i < cnt; ++i) {
-        fields[i].name = names[i];
-        pldm_rstr_create_val(&vals, type[i], sizeof(u32), &(fields[i].val));
+        pldm_rstr_fill_identify(names[i], type[i], &fields[i]);
+        pldm_rstr_fill_val(&val, sizeof(val), &fields[i]);
     }
     return cnt;
 }
 
-u8 pldm_rstr_create_networkdevicefunction_field(pldm_rstr_field_t *fields)
+static u8 pldm_rstr_create_networkdevicefunction_field(pldm_rstr_field_t *fields)
 {
     if (!fields) return 0;
     char *names[] = {
@@ -209,16 +219,16 @@ u8 pldm_rstr_create_networkdevicefunction_field(pldm_rstr_field_t *fields)
         BEJ_BOOLEAN,
         BEJ_ENUM,
     };
-    u32 vals = 's';
+    u32 val = 's';
     u8 cnt = sizeof(type);
     for (u8 i = 0; i < cnt; ++i) {
-        fields[i].name = names[i];
-        pldm_rstr_create_val(&vals, type[i], sizeof(u32), &(fields[i].val));
+        pldm_rstr_fill_identify(names[i], type[i], &fields[i]);
+        pldm_rstr_fill_val(&val, sizeof(val), &fields[i]);
     }
     return cnt;
 }
 
-u8 pldm_rstr_create_port_field(pldm_rstr_field_t *fields)
+static u8 pldm_rstr_create_port_field(pldm_rstr_field_t *fields)
 {
     if (!fields) return 0;
     char *names[] = {
@@ -262,19 +272,16 @@ u8 pldm_rstr_create_port_field(pldm_rstr_field_t *fields)
         BEJ_STR,
         BEJ_ENUM,
     };
-    u32 vals = 's';
+    u32 val = 's';
     u8 cnt = sizeof(type);
     for (u8 i = 0; i < cnt; ++i) {
-        fields[i].name = names[i];
-        if (type[i] != BEJ_STR)
-            pldm_rstr_create_val(&vals, type[i], sizeof(u32), &(fields[i].val));
-        else
-            pldm_rstr_create_val(&("hhhhhh"), type[i], strlen("hhhhhh"), &(fields[i].val));
+        pldm_rstr_fill_identify(names[i], type[i], &fields[i]);
+        pldm_rstr_fill_val(&val, sizeof(val), &fields[i]);
     }
     return cnt;
 }
 
-u8 pldm_rstr_create_pciefunction_field(pldm_rstr_field_t *fields)
+static u8 pldm_rstr_create_pciefunction_field(pldm_rstr_field_t *fields)
 {
     if (!fields) return 0;
     char *names[] = {
@@ -302,16 +309,16 @@ u8 pldm_rstr_create_pciefunction_field(pldm_rstr_field_t *fields)
         BEJ_STR,
         BEJ_STR,
     };
-    u32 vals = 's';
+    u32 val = 's';
     u8 cnt = sizeof(type);
     for (u8 i = 0; i < cnt; ++i) {
-        fields[i].name = names[i];
-        pldm_rstr_create_val(&vals, type[i], sizeof(u32), &(fields[i].val));
+        pldm_rstr_fill_identify(names[i], type[i], &fields[i]);
+        pldm_rstr_fill_val(&val, sizeof(val), &fields[i]);
     }
     return cnt;
 }
 
-u8 pldm_rstr_create_ethernetinterface_field(pldm_rstr_field_t *fields)
+static u8 pldm_rstr_create_ethernetinterface_field(pldm_rstr_field_t *fields)
 {
     if (!fields) return 0;
     char *names[] = {
@@ -339,16 +346,16 @@ u8 pldm_rstr_create_ethernetinterface_field(pldm_rstr_field_t *fields)
         BEJ_ENUM,
         BEJ_ENUM,
     };
-    u32 vals = 's';
+    u32 val = 's';
     u8 cnt = sizeof(type);
     for (u8 i = 0; i < cnt; ++i) {
-        fields[i].name = names[i];
-        pldm_rstr_create_val(&vals, type[i], sizeof(u32), &(fields[i].val));
+        pldm_rstr_fill_identify(names[i], type[i], &fields[i]);
+        pldm_rstr_fill_val(&val, sizeof(val), &fields[i]);
     }
     return cnt;
 }
 
-void pldm_rstr_process_redfish_resource(pldm_rstr_field_t *fields, pldm_cjson_t *root, u8 field_cnt, u8 *idx)
+static void pldm_rstr_process_redfish_resource(pldm_rstr_field_t *fields, pldm_cjson_t *root, u8 field_cnt, u8 *idx)
 {
     if (!fields || !root) return;
     pldm_cjson_t *tmp = root;
@@ -394,7 +401,4 @@ void pldm_rstr_update_redfish_resource(pldm_cjson_t *root, u8 resource_identify)
     u8 idx = 0;
     if (field_cnt)
         pldm_rstr_process_redfish_resource(fields, root, field_cnt, &idx);
-    LOG("idx : %d, field_cnt : %d", idx, field_cnt);
 }
-
-
