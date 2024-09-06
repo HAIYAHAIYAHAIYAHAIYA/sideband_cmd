@@ -1204,7 +1204,7 @@ void pldm_redfish_op(void)
     LOG("ROOT NODE-------------------------------------------");
         pldm_cjson_printf_root(root);
 
-    if (gs_op_buf.op_data.len && (gs_op_info.op_type == UPDATE || gs_op_info.op_type == REPLACE)) {
+    if (gs_op_buf.op_data.len && gs_op_info.op_type == UPDATE) {
         bej_root = pldm_bej_decode(&(gs_op_buf.op_data.data[sizeof(bejencoding_t)]), gs_op_buf.op_data.len - sizeof(bejencoding_t), anno_dict, dict, bej_root, 0);
         if (!bej_root) {
             err_code = -4;
@@ -1230,9 +1230,9 @@ void pldm_redfish_op(void)
         case UPDATE:
             state = pldm_cjson_update(root, match_node, bej_root);
             break;
-        case REPLACE:
-            state = pldm_cjson_replace(root, bej_root);
-            break;
+        // case REPLACE:
+        //     state = pldm_cjson_replace(root, bej_root);
+        //     break;
         case ACTION:
             state = pldm_cjson_action(root);
             break;
@@ -1253,8 +1253,8 @@ void pldm_redfish_op(void)
         pldm_cjson_cal_len_to_root(root, gs_op_info.op_type);
         char *val = pldm_cjson_update_etag(root);
         if (val) {
-            g_resource_bej[bej_idx + offset].is_etag = 1;
-            cm_memcpy(g_resource_bej[bej_idx + offset].etag, val, 8);
+            if (gs_op_info.op_type == UPDATE)
+                cm_memcpy(g_resource_bej[bej_idx + offset].etag, val, 8);
         } else {
             err_code = -8;
             goto L_EXIT;
