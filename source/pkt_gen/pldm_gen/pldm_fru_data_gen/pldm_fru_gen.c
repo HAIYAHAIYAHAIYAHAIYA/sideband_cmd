@@ -44,24 +44,22 @@ void pldm_fru_gen_init(void)
 pkt_gen_state_transform_t pldm_fru_state_transform[] = {
     {PLDM_FRU_GEN_IDLE, PLDM_FRU_GEN_ENTER_CMD_01,     PLDM_FRU_GEN_IDLE, NULL},
     {PLDM_FRU_GEN_IDLE, PLDM_FRU_GEN_ENTER_CMD_02,     PLDM_FRU_GEN_IDLE, PLDM_FRU_CMD_GEN(02)},
-    {PLDM_FRU_GEN_IDLE, PLDM_FRU_GEN_ENTER_CMD_UNKNOW, PLDM_FRU_GEN_IDLE, NULL},
 };
 
 u8 pldm_fru_state_transform_switch(u8 cnt, u8 *buf)
 {
     u8 ret = 0xFF;
     for (u8 i = 0; i < sizeof(pldm_fru_state_transform) / sizeof(pkt_gen_state_transform_t); i++) {
-        if (gs_pldm_fru_gen_state.cur_state == pldm_fru_state_transform[i].cur_state && gs_pldm_fru_gen_state.event_id == pldm_fru_state_transform[i].event_id) {
+        if ((gs_pldm_fru_gen_state.cur_state == pldm_fru_state_transform[i].cur_state) && (gs_pldm_fru_gen_state.event_id == pldm_fru_state_transform[i].event_id)) {
             gs_pldm_fru_gen_state.prev_state = gs_pldm_fru_gen_state.cur_state;
             gs_pldm_fru_gen_state.cur_state = pldm_fru_state_transform[i].next_state;
 
-            if (gs_pldm_fru_gen_state.event_id == PLDM_FRU_GEN_ENTER_CMD_02)
-                gs_pldm_fru_gen_state.event_id = PLDM_FRU_GEN_ENTER_CMD_UNKNOW;
-
-            // LOG("gs_pldm_fru_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_fru_gen_state.prev_state, gs_pldm_fru_gen_state.cur_state, gs_pldm_fru_gen_state.event_id);  /* for debug */
+            LOG("gs_pldm_fru_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_fru_gen_state.prev_state, gs_pldm_fru_gen_state.cur_state, gs_pldm_fru_gen_state.event_id);  /* for debug */
             if (pldm_fru_state_transform[i].action != NULL) {
                 pldm_fru_state_transform[i].action(buf);
             }
+            if (gs_pldm_fru_gen_state.event_id == PLDM_FRU_GEN_ENTER_CMD_02)
+                gs_pldm_fru_gen_state.event_id = PLDM_FRU_GEN_ENTER_CMD_UNKNOW;
             ret = 1;
             break;
         }

@@ -7,6 +7,9 @@ static u8 gs_pldm_fru_table[PLDM_FRU_TABLE_BUF_LEN];
 extern void pldm_unsupport_cmd(protocol_msg_t *pkt, int *pkt_len);
 extern u32 crc32_pldm(u32 init_crc, u8 *data, u32 len);
 
+u8 *pldm_fru_find_next_fru_data(u8 *start_addr);
+u8 pldm_fru_fill_pad(u8 *pad_pos, u8 data_len, u8 algin_len, u8 pad_val);
+
 #define CM_VENDOR_GET_VEMDOR_IANA                   htonl(0x56575859)
 #define CM_VENDOR_GET_PART_NUMBER                   "0"
 #define CM_VENDOR_GET_MANUFACTURER                  "0"
@@ -64,11 +67,11 @@ static void pldm_fru_get_fru_record_table(protocol_msg_t *pkt, int *pkt_len)
         return;
     }
 
-    u16 remain_len = table_len - data_transfer_hdl;
-    u16 cpy_len = remain_len <= PLDM_FRU_TRANSFER_BUFFERSIZE ? remain_len : PLDM_FRU_TRANSFER_BUFFERSIZE;
     u8 *cpy_addr = (u8 *)&(table->field);
+    u8 *next_part = pldm_fru_find_next_fru_data(&cpy_addr[data_transfer_hdl]);
+    u16 cpy_len = next_part - &cpy_addr[data_transfer_hdl];
 
-    if (remain_len <= PLDM_FRU_TRANSFER_BUFFERSIZE) {
+    if (next_part >= &cpy_addr[table_len - 1]) {
         if (req_dat->data_transfer_hdl == PLDM_TRANSFER_OP_FLAG_GET_FIRST_PART) {
             rsp_dat->transfer_flg = PLDM_FRU_TRANSFRT_FLG_START_AND_END;
         } else {
@@ -80,8 +83,14 @@ static void pldm_fru_get_fru_record_table(protocol_msg_t *pkt, int *pkt_len)
         rsp_dat->next_data_transfer_hdl = data_transfer_hdl + cpy_len;
     }
     cm_memcpy(rsp_dat->portion_of_data, &cpy_addr[data_transfer_hdl], cpy_len);
+
+    /* Table 7 – PLDM Representation of FRU Record Data */
+    u8 pad_len = pldm_fru_fill_pad(&(rsp_dat->portion_of_data[cpy_len]), cpy_len, 4, 0x00);
+    u32 fru_data_crc = crc32_pldm(0xFFFFFFFFUL, rsp_dat->portion_of_data, pad_len + cpy_len);
+    cm_memcpy(&(rsp_dat->portion_of_data[pad_len + cpy_len]), &fru_data_crc, 4);
+
     gs_prev_transfer_hdl = rsp_dat->next_data_transfer_hdl;
-    *pkt_len += sizeof(pldm_fru_get_fru_record_table_rsp_dat_t) + cpy_len;
+    *pkt_len += sizeof(pldm_fru_get_fru_record_table_rsp_dat_t) + cpy_len + pad_len + sizeof(fru_data_crc);
 }
 
 static pldm_cmd_func pldm_fru_cmd_table[PLDM_FRU_DATA_CMD] =
@@ -104,10 +113,31 @@ void pldm_fru_process(protocol_msg_t *pkt, int *pkt_len, u32 cmd_code)
     return cmd_proc(pkt, pkt_len);
 }
 
+u8 *pldm_fru_find_next_fru_data(u8 *start_addr)
+{
+    if (!start_addr) return NULL;
+    pldm_fru_record_table_field_fmt_t *fru_data = (pldm_fru_record_table_field_fmt_t *)start_addr;
+    u8 *next_tlv = fru_data->tlv;
+    for (u8 i = 0; i < fru_data->num_of_fru_fields; ++i) {
+        pldm_fru_tlv_fmt_t *tlv = (pldm_fru_tlv_fmt_t *)next_tlv;
+        next_tlv = (u8 *)&(tlv->val[tlv->len]);
+    }
+    return next_tlv;
+}
+
+u8 pldm_fru_fill_pad(u8 *pad_pos, u8 data_len, u8 algin_len, u8 pad_val)
+{
+    if (!pad_pos) return 0;
+    if (!(data_len % algin_len)) return 0;
+    u8 pad_len = algin_len - data_len % algin_len;
+    cm_memset(pad_pos, pad_val, pad_len);
+    return pad_len;
+}
+
 /* refer to \\nfs\public\firmware\common\pldm\vendors\MCTPFRU-AN1281-100.pdf */
 /* refer to \\nfs\public\firmware\common\pldm\vendors\MCTPFRU-AN1408-100.pdf */
 /* to be determind */
-u8 *pldm_fru_fill_general_part(u8 *buf, u8 *tlv_num)
+static u8 *pldm_fru_fill_general_part(u8 *buf, u8 *tlv_num)
 {
     char vals[15][48];
     u32 vendor_iana = CM_VENDOR_GET_VEMDOR_IANA;
@@ -135,7 +165,7 @@ u8 *pldm_fru_fill_general_part(u8 *buf, u8 *tlv_num)
 }
 
 /* to be determind */
-u8 *pldm_fru_fill_chip_part(u8 *buf, u8 *tlv_num)
+static u8 *pldm_fru_fill_chip_part(u8 *buf, u8 *tlv_num)
 {
     char vals[8][32];
     u8 vpd_sn[21];
@@ -167,7 +197,7 @@ u8 *pldm_fru_fill_chip_part(u8 *buf, u8 *tlv_num)
 }
 
 /* to be determind */
-u8 *pldm_fru_fill_portn_part(u8 *buf, u8 port_id, u8 *tlv_num)
+static u8 *pldm_fru_fill_portn_part(u8 *buf, u8 port_id, u8 *tlv_num)
 {
     char vals[3][48];
     u8 mac[6];
@@ -192,7 +222,7 @@ u8 *pldm_fru_fill_portn_part(u8 *buf, u8 port_id, u8 *tlv_num)
     return (u8 *)tlv;
 }
 
-u8 *pldm_fru_fill_main_part(u8 *buf)
+static u8 *pldm_fru_fill_main_part(u8 *buf)
 {
     if (!buf) return NULL;
     pldm_fru_record_table_field_fmt_t fields[] = {
@@ -216,7 +246,7 @@ u8 *pldm_fru_fill_main_part(u8 *buf)
     return next_part;
 }
 
-u8 *pldm_fru_fill_sub_part(u8 *buf)
+static u8 *pldm_fru_fill_sub_part(u8 *buf)
 {
     if (!buf) return NULL;
     pldm_fru_record_table_field_fmt_t fields[] = {
