@@ -241,6 +241,11 @@ u8 pldm_monitor_state_transform_switch(u8 cnt, u8 *buf)
             gs_pldm_monitor_gen_state.prev_state = gs_pldm_monitor_gen_state.cur_state;
             gs_pldm_monitor_gen_state.cur_state = pldm_monitor_state_transform[i].next_state;
             LOG("gs_pldm_monitor_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_monitor_gen_state.prev_state, gs_pldm_monitor_gen_state.cur_state, gs_pldm_monitor_gen_state.event_id);  /* for debug */
+
+            if (pldm_monitor_state_transform[i].action != NULL) {
+                pldm_monitor_state_transform[i].action(buf);
+            }
+
             if (gs_pldm_monitor_gen_state.event_id == PLDM_MONITOR_GEN_GET_PDR)
                 gs_pldm_monitor_gen_state.event_id = PLDM_MONITOR_GEN_UNKNOW;
 
@@ -249,10 +254,6 @@ u8 pldm_monitor_state_transform_switch(u8 cnt, u8 *buf)
 
             if (gs_pldm_monitor_gen_state.event_id == PLDM_MONITOR_GEN_NEED_POLL_EVENT)
                 gs_pldm_monitor_gen_state.event_id = PLDM_MONITOR_GEN_UNKNOW;
-
-            if (pldm_monitor_state_transform[i].action != NULL) {
-                pldm_monitor_state_transform[i].action(buf);
-            }
             ret = 1;
             break;
         }

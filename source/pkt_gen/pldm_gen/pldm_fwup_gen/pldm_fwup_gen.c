@@ -367,6 +367,11 @@ u8 pldm_fwup_state_transform_switch(u8 cnt, u8 *buf)
             gs_pldm_fwup_gen_state.prev_state = gs_pldm_fwup_gen_state.cur_state;
             gs_pldm_fwup_gen_state.cur_state = pldm_fwup_state_transform[i].next_state;
             LOG("pldm_fwup_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_fwup_gen_state.prev_state, gs_pldm_fwup_gen_state.cur_state, gs_pldm_fwup_gen_state.event_id);  /* for debug */
+            
+            if (pldm_fwup_state_transform[i].action != NULL) {
+                pldm_fwup_state_transform[i].action(buf);
+            }
+
             if (gs_pldm_fwup_gen_state.event_id == PLDM_FWUP_GEN_SEND_FW_DATA)
                 gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_SEND_FW_DATA_PAUSE;
 
@@ -384,9 +389,7 @@ u8 pldm_fwup_state_transform_switch(u8 cnt, u8 *buf)
                 ret = 0;
             else
                 ret = 1;
-            if (pldm_fwup_state_transform[i].action != NULL) {
-                pldm_fwup_state_transform[i].action(buf);
-            }
+
             break;
         }
     }

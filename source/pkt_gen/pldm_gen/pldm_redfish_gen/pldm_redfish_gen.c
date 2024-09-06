@@ -368,13 +368,15 @@ u8 pldm_redfish_state_transform_switch(u8 cnt, u8 *buf)
             gs_pldm_redfish_gen_state.cur_state = pldm_redfish_state_transform[i].next_state;
             LOG("gs_pldm_redfish_gen prev state : %d, cur state : %d, event id : %d", gs_pldm_redfish_gen_state.prev_state, gs_pldm_redfish_gen_state.cur_state, gs_pldm_redfish_gen_state.event_id);  /* for debug */
 
+            if (pldm_redfish_state_transform[i].action != NULL) {
+                pldm_redfish_state_transform[i].action(buf);
+            }
+
             if (gs_pldm_redfish_gen_state.event_id == PLDM_REDFISH_GEN_NEED_MULTI_RECV)
                 gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_UNKNOW;
             if (gs_pldm_redfish_gen_state.event_id == PLDM_REDFISH_GEN_NEED_MULTI_SEND)
                 gs_pldm_redfish_gen_state.event_id = PLDM_REDFISH_GEN_UNKNOW;
-            if (pldm_redfish_state_transform[i].action != NULL) {
-                pldm_redfish_state_transform[i].action(buf);
-            }
+
             ret = 1;
             break;
         }
