@@ -106,9 +106,9 @@ static void pldm_monitor_get_event_receiver(protocol_msg_t *pkt, int *pkt_len)
 static void pldm_monitor_platform_event_msg_rsp(protocol_msg_t *pkt, int *pkt_len)
 {
     g_pldm_need_rsp = 0;
-    pldm_platform_event_msg_receive_t *req_dat = (pldm_platform_event_msg_receive_t *)(pkt->req_buf);
-    if (req_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
-        LOG("Need re-send event msg, cpl code : 0x%x", req_dat->cpl_code);
+    pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->req_buf - sizeof(pldm_request_t));
+    if (rsp_hdr->cpl_code != MCTP_COMMAND_SUCCESS) {
+        LOG("Need re-send event msg, cpl code : 0x%x", rsp_hdr->cpl_code);
         return;
     }
 
@@ -775,6 +775,7 @@ static void pldm_monitor_get_pdr(protocol_msg_t *pkt, int *pkt_len)
     }
 
     if (gs_pdr_transfer_flag == PLDM_TRANSFER_FLAG_START_AND_END || gs_pdr_transfer_flag == PLDM_TRANSFER_FLAG_END) {
+        if (req_dat->record_handle == 0) req_dat->record_handle = PLDM_BASE_NIC_ASSOC_PDR_HANDLE; /* get the first pdr. */
         gs_find_pdr = pldm_pdr_find(&(g_pldm_monitor_info.pldm_repo), req_dat->record_handle);
         if (!gs_find_pdr) {
             rsp_hdr->cpl_code = PLDM_INVALID_RECORD_HANDLE;

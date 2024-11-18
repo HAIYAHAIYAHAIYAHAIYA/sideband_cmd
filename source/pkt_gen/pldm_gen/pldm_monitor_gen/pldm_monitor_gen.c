@@ -38,8 +38,8 @@ static void pldm_monitor_gen_cmd_05(u8 *buf)
 static void pldm_monitor_gen_cmd_0a(u8 *buf)
 {
     pldm_gen_req_hdr_update(buf, 0x0a);
-    pldm_platform_event_msg_receive_t *req_dat = (pldm_platform_event_msg_receive_t *)buf;
-    req_dat->cpl_code = MCTP_COMMAND_SUCCESS;
+    pldm_response_t *rsp_dat = (pldm_response_t *)(buf - sizeof(pldm_request_t));
+    rsp_dat->cpl_code = MCTP_COMMAND_SUCCESS;
 }
 
 static void pldm_monitor_gen_cmd_0b(u8 *buf)

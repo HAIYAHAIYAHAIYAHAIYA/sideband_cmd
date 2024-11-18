@@ -56,8 +56,9 @@ static void pldm_fwup_gen_cmd_10(u8 *buf)
 void pldm_fwup_gen_cmd_11(u8 *buf)
 {
     pldm_gen_req_hdr_update(buf, 0x11);
-    pldm_fwup_get_pkt_data_rsp_dat_t *rsp_dat = (pldm_fwup_get_pkt_data_rsp_dat_t *)buf;
-    rsp_dat->cpl_code = MCTP_COMMAND_SUCCESS;
+    pldm_response_t *rsp_hdr = (pldm_response_t *)(buf - sizeof(pldm_request_t));
+    pldm_fwup_get_pkt_data_rsp_dat_t *rsp_dat = (pldm_fwup_get_pkt_data_rsp_dat_t *)((u8 *)rsp_hdr + sizeof(pldm_response_t));
+    rsp_hdr->cpl_code = MCTP_COMMAND_SUCCESS;
 
     FILE *pd = NULL;
     // pd = fopen(PLDM_FWUP_IMG_NAME, "rb");
@@ -167,8 +168,9 @@ static void pldm_fwup_gen_cmd_14(u8 *buf)
 void pldm_fwup_gen_cmd_15(u8 *buf)
 {
     pldm_gen_req_hdr_update(buf, 0x15);
-    pldm_fwup_req_fw_data_rsp_dat_t *rsp_dat = (pldm_fwup_req_fw_data_rsp_dat_t *)buf;
-    rsp_dat->cpl_code = MCTP_COMMAND_SUCCESS;
+    pldm_response_t *rsp_hdr = (pldm_response_t *)(buf - sizeof(pldm_request_t));
+    pldm_fwup_req_fw_data_rsp_dat_t *rsp_dat = (pldm_fwup_req_fw_data_rsp_dat_t *)((u8 *)rsp_hdr + sizeof(pldm_response_t));
+    rsp_hdr->cpl_code = MCTP_COMMAND_SUCCESS;
 
     pldm_fwup_req_fw_data_req_dat_t req_dat = pldm_fwup_gen_recv_get_fw_data_req_dat();
 
@@ -206,7 +208,7 @@ void pldm_fwup_gen_cmd_15(u8 *buf)
 static void pldm_fwup_gen_cmd_16(u8 *buf)
 {
     pldm_gen_req_hdr_update(buf, 0x16);
-    pldm_fwup_transfer_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_transfer_cpl_rsp_dat_t *)buf;
+    pldm_response_t *rsp_dat = (pldm_response_t *)(buf - sizeof(pldm_request_t));
     rsp_dat->cpl_code = MCTP_COMMAND_SUCCESS;
     gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_TRANS_FW_DATA_END;
 }
@@ -214,7 +216,7 @@ static void pldm_fwup_gen_cmd_16(u8 *buf)
 static void pldm_fwup_gen_cmd_17(u8 *buf)
 {
     pldm_gen_req_hdr_update(buf, 0x17);
-    pldm_fwup_verify_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_verify_cpl_rsp_dat_t *)buf;
+    pldm_response_t *rsp_dat = (pldm_response_t *)(buf - sizeof(pldm_request_t));
     rsp_dat->cpl_code = MCTP_COMMAND_SUCCESS;
     gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_FD_VERIFY_END;
 }
@@ -222,7 +224,7 @@ static void pldm_fwup_gen_cmd_17(u8 *buf)
 static void pldm_fwup_gen_cmd_18(u8 *buf)
 {
     pldm_gen_req_hdr_update(buf, 0x18);
-    pldm_fwup_apply_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_apply_cpl_rsp_dat_t *)buf;
+    pldm_response_t *rsp_dat = (pldm_response_t *)(buf - sizeof(pldm_request_t));
     rsp_dat->cpl_code = MCTP_COMMAND_SUCCESS;
     gs_pldm_fwup_gen_state.event_id = PLDM_FWUP_GEN_FD_APPLY_END;
 }

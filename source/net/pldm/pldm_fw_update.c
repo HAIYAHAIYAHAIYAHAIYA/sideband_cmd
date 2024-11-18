@@ -245,10 +245,11 @@ static void pldm_fwup_getpackagedata_send(void)
 static void pldm_fwup_getpackagedata_recv(protocol_msg_t *pkt, int *pkt_len)
 {
     g_pldm_need_rsp = 0;
-    pldm_fwup_get_pkt_data_rsp_dat_t *rsp_dat = (pldm_fwup_get_pkt_data_rsp_dat_t *)(pkt->req_buf);
-    if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
+    pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->req_buf - sizeof(pldm_request_t));
+    pldm_fwup_get_pkt_data_rsp_dat_t *rsp_dat = (pldm_fwup_get_pkt_data_rsp_dat_t *)((u8 *)rsp_hdr + sizeof(pldm_response_t));
+    if (rsp_hdr->cpl_code != MCTP_COMMAND_SUCCESS) {
         gs_data_transfer_handle = 0;
-        LOG("cpl_code : %#x", rsp_dat->cpl_code);
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
         return;
     }
 
@@ -371,9 +372,10 @@ static u8 transfer_result = 0;
 static void pldm_fwup_requestfwdata_recv(protocol_msg_t *pkt, int *pkt_len)
 {
     g_pldm_need_rsp = 0;
-    pldm_fwup_req_fw_data_rsp_dat_t *rsp_dat = (pldm_fwup_req_fw_data_rsp_dat_t *)(pkt->req_buf);
-    if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
-        LOG("cpl_code : %#x", rsp_dat->cpl_code);
+    pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->req_buf - sizeof(pldm_request_t));
+    pldm_fwup_req_fw_data_rsp_dat_t *rsp_dat = (pldm_fwup_req_fw_data_rsp_dat_t *)((u8 *)rsp_hdr + sizeof(pldm_response_t));
+    if (rsp_hdr->cpl_code != MCTP_COMMAND_SUCCESS) {
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
         return;
     }
 
@@ -449,9 +451,9 @@ static void pldm_fwup_applycpl_send(void)
 static void pldm_fwup_transfercpl_recv(protocol_msg_t *pkt, int *pkt_len)
 {
     g_pldm_need_rsp = 0;
-    pldm_fwup_transfer_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_transfer_cpl_rsp_dat_t *)(pkt->req_buf);
-    if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
-        LOG("cpl_code : %#x", rsp_dat->cpl_code);
+    pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->req_buf - sizeof(pldm_request_t));
+    if (rsp_hdr->cpl_code != MCTP_COMMAND_SUCCESS) {
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
     } else {
         if (!transfer_result)
             gs_event_id = PLDM_UD_TRANSFER_PASS;
@@ -462,9 +464,9 @@ static void pldm_fwup_transfercpl_recv(protocol_msg_t *pkt, int *pkt_len)
 static void pldm_fwup_verifycpl_recv(protocol_msg_t *pkt, int *pkt_len)
 {
     g_pldm_need_rsp = 0;
-    pldm_fwup_verify_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_verify_cpl_rsp_dat_t *)(pkt->req_buf);
-    if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
-        LOG("cpl_code : %#x", rsp_dat->cpl_code);
+    pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->req_buf - sizeof(pldm_request_t));
+    if (rsp_hdr->cpl_code != MCTP_COMMAND_SUCCESS) {
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
     } else {
         if (!verify_result)
             gs_event_id = PLDM_UD_VERIFY_PASS;
@@ -487,9 +489,9 @@ static void pldm_fwup_verify_process(void)
 static void pldm_fwup_applycpl_recv(protocol_msg_t *pkt, int *pkt_len)
 {
     g_pldm_need_rsp = 0;
-    pldm_fwup_apply_cpl_rsp_dat_t *rsp_dat = (pldm_fwup_apply_cpl_rsp_dat_t *)(pkt->req_buf);
-    if (rsp_dat->cpl_code != MCTP_COMMAND_SUCCESS) {
-        LOG("cpl_code : %#x", rsp_dat->cpl_code);
+    pldm_response_t *rsp_hdr = (pldm_response_t *)(pkt->req_buf - sizeof(pldm_request_t));
+    if (rsp_hdr->cpl_code != MCTP_COMMAND_SUCCESS) {
+        LOG("cpl_code : %#x", rsp_hdr->cpl_code);
     } else {
         gs_event_id = PLDM_UD_APPLY_PASS;
         gs_progress_flag = 1;
@@ -783,7 +785,7 @@ void pldm_fwup_timeout_process(u8 rsp_cmd)
     /* ms */
     u64 cur_time = CM_GET_CUR_TIMER_MS();
     /* Implement “6.3.2 Requirements for Requesters” as specified in DSP0240. */
-    u64 pt2_timeout = 4800;                 /* Time out waiting for a response -> min : 300ms, max : 4.8s */
+    u64 pt2_timeout = 48000;                 /* Time out waiting for a response -> min : 300ms, max : 4.8s */
     u64 upgrade_timeout = 15 * 60 * 1000;   /* upgrade must in 15 min.(E810) */
     u8 is_timeout = 0;
 

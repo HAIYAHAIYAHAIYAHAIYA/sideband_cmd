@@ -457,7 +457,6 @@ typedef struct {
 } pldm_get_pdr_repo_signature_rsp_dat_t;
 
 typedef struct {
-    u8 cpl_code;
     u8 status;                              /* can be ignored */
 } pldm_platform_event_msg_receive_t;
 

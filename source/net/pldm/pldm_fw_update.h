@@ -269,7 +269,6 @@ typedef struct {
 } pldm_fwup_get_pkt_data_req_dat_t;
 
 typedef struct {
-    u8 cpl_code;
     u32 next_data_transfer_handle;
     u8 transfer_flag;
     u8 portion_of_pkt_data[0];
@@ -311,7 +310,6 @@ typedef struct {
 } pldm_fwup_req_fw_data_req_dat_t;
 
 typedef struct {
-    u8 cpl_code;
     u8 comp_img_option[0];
 } pldm_fwup_req_fw_data_rsp_dat_t;
 
@@ -326,10 +324,6 @@ typedef struct {
     u8 apply_result;
     u16 comp_actv_meth_modification;
 } pldm_fwup_apply_cpl_req_dat_t;
-
-typedef struct {
-    u8 cpl_code;
-} pldm_fwup_apply_cpl_rsp_dat_t, pldm_fwup_transfer_cpl_rsp_dat_t, pldm_fwup_verify_cpl_rsp_dat_t;
 
 typedef struct {
     s8 self_contained_actv_req;                 /* Self contained activate is not supported. */
